@@ -1,0 +1,537 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "📌 Золотые сигналы планирования (Golden Signals & SLI)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Интенсивность успешного назначения подов на узлы кластера в секунду. Резкие скачки коррелируют с масштабированием HPA, деплоями или восстановлением нод после сбоя.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "reqps"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(scheduler_schedule_attempts_total{instance=~\"$instance\",result=\"scheduled\"}[2m]))",
+          "legendFormat": "Подов запланировано / сек",
+          "refId": "A"
+        }
+      ],
+      "title": "Темп планирования (Scheduled Pods Rate)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Процент попыток планирования, завершившихся неудачей (unschedulable). Норма: < 5-10%. Если значение подскакивает выше 30-50%, в кластере дефицит ресурсов (CPU/RAM/GPU), исчерпаны IP-адреса CNI, либо поды заблокированы taints/affinities.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 30 }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "(sum(rate(scheduler_schedule_attempts_total{instance=~\"$instance\",result=\"unschedulable\"}[2m])) / sum(rate(scheduler_schedule_attempts_total{instance=~\"$instance\"}[2m]))) * 100 or (0 * sum(rate(scheduler_schedule_attempts_total{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "% Unschedulable",
+          "refId": "A"
+        }
+      ],
+      "title": "Доля незапланированных подов (% Unschedulable)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "99-й перцентиль полного сквозного времени планирования пода (от взятия из очереди до завершения связывания Binding). Норма Kubernetes SLI: P99 < 100-200ms. Рост выше 1s сигнализирует о тормозящих CSI томах или задержках Kube-API.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.2 },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(scheduler_e2e_scheduling_duration_seconds_bucket{instance=~\"$instance\"}[2m]))) or (sum(rate(scheduler_e2e_scheduling_duration_seconds_sum{instance=~\"$instance\"}[2m])) / sum(rate(scheduler_e2e_scheduling_duration_seconds_count{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "P99 / Avg E2E Latency",
+          "refId": "A"
+        }
+      ],
+      "title": "P99 Сквозное время планирования (E2E Latency)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество подов, находящихся в активной очереди (activeQ) и ожидающих немедленного планирования. В здоровом ненагруженном кластере близко к 0. Рост выше сотен указывает на затор в алгоритме планирования.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 50 },
+              { "color": "red", "value": 200 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(scheduler_pending_pods{instance=~\"$instance\",queue=~\"active.*\"})",
+          "legendFormat": "Подов в activeQ",
+          "refId": "A"
+        }
+      ],
+      "title": "Очередь активного планирования (ActiveQ Backlog)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "⏱️ Задержки стадий планирования и SLI (Scheduling Stages & Latency)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Квантили P50, P90, P99 времени выполнения сквозного цикла планирования (E2E Scheduling Duration). Отражает полную задержку от извлечения пода из очереди до завершения связывания на узле.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "id": 5,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(scheduler_e2e_scheduling_duration_seconds_bucket{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "P99 E2E Latency",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.90, sum by (le) (rate(scheduler_e2e_scheduling_duration_seconds_bucket{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "P90 E2E Latency",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(scheduler_e2e_scheduling_duration_seconds_bucket{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "P50 E2E Latency",
+          "refId": "C"
+        },
+        {
+          "expr": "sum(rate(scheduler_e2e_scheduling_duration_seconds_sum{instance=~\"$instance\"}[2m])) / sum(rate(scheduler_e2e_scheduling_duration_seconds_count{instance=~\"$instance\"}[2m]))",
+          "legendFormat": "Avg E2E Latency",
+          "refId": "D"
+        }
+      ],
+      "title": "Квантили сквозного времени планирования (E2E Latency)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Время работы чистого алгоритма планирования (Filtering + Scoring). Выполняется синхронно для каждого пода. Норма: < 20-50ms. Если алгоритм работает дольше, очередь ActiveQ начинает экспоненциально расти.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "id": 6,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(scheduler_scheduling_algorithm_duration_seconds_bucket{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "P99 Algorithm Latency",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(scheduler_scheduling_algorithm_duration_seconds_sum{instance=~\"$instance\"}[2m])) / sum(rate(scheduler_scheduling_algorithm_duration_seconds_count{instance=~\"$instance\"}[2m]))",
+          "legendFormat": "Avg Algorithm Latency",
+          "refId": "B"
+        }
+      ],
+      "title": "Задержка алгоритма планирования (Algorithm Duration)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Время выполнения асинхронного шага Binding (фиксация выбранного узла через вызов к kube-apiserver). Если Binding Duration превышает 200ms — kube-apiserver или etcd перегружены запросами записи.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(scheduler_binding_duration_seconds_bucket{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "P99 Binding Duration",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(scheduler_binding_duration_seconds_sum{instance=~\"$instance\"}[2m])) / sum(rate(scheduler_binding_duration_seconds_count{instance=~\"$instance\"}[2m]))",
+          "legendFormat": "Avg Binding Duration",
+          "refId": "B"
+        }
+      ],
+      "title": "Задержка связывания с узлом (Binding Duration)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Результаты попыток планирования по статусам: scheduled (успешно назначен), unschedulable (нет подходящей ноды), error (внутренняя ошибка планировщика).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "stacking": { "group": "A", "mode": "normal" } },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "id": 8,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (result) (rate(scheduler_schedule_attempts_total{instance=~\"$instance\"}[2m]))",
+          "legendFormat": "Результат: {{result}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Результаты попыток планирования (Attempts by Result)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "id": 102,
+      "title": "🚦 Очереди планировщика, Бэклог и Вытеснение (Queues & Preemption)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество подов в трех внутренних очередях: activeQ (готовы к планированию прямо сейчас), backoffQ (повторная попытка с экспоненциальной задержкой), unschedulableQ (застряли, ожидают события изменения кластера). Огромный unschedulableQ указывает на нехватку емкости.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 23 },
+      "id": 9,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (queue) (scheduler_pending_pods{instance=~\"$instance\"})",
+          "legendFormat": "Очередь: {{queue}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Поды в очередях планировщика (Pending Pods in Queues)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Интенсивность поступления подов в очереди и перемещения между ними. Показывает динамику добавления новых задач в планировщик.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 23 },
+      "id": 10,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (queue, event) (rate(scheduler_queue_incoming_pods_total{instance=~\"$instance\"}[2m]))",
+          "legendFormat": "{{queue}} ({{event}})",
+          "refId": "A"
+        }
+      ],
+      "title": "Поток подов в очереди (Queue Incoming Pods)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Попытки вытеснения подов (Preemption Attempts) и число подов-жертв, принудительно завершенных ради освобождения места высокоприоритетным подам (Victims). Рост метрики — ключевой признак жесткого ресурсного голода.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 31 },
+      "id": 11,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum(rate(scheduler_preemption_attempts_total{instance=~\"$instance\"}[2m])) or sum(rate(scheduler_total_preemption_attempts{instance=~\"$instance\"}[2m])) or (0 * sum(rate(scheduler_schedule_attempts_total{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "Попытки вытеснения (Attempts / sec)",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(scheduler_preemption_victims_total{instance=~\"$instance\"}[2m])) or (0 * sum(rate(scheduler_schedule_attempts_total{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "Вытеснено подов-жертв (Victims / sec)",
+          "refId": "B"
+        }
+      ],
+      "title": "Вытеснение подов по приоритетам (Preemption Attempts & Victims)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 39 },
+      "id": 103,
+      "title": "🔍 Точки расширения Framework и Плагины (Extension Points & Plugins)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Время выполнения основных стадий Scheduling Framework: Filter (отсеивание неподходящих узлов), Score (ранжирование и выбор лучшего узла), PreFilter (предварительный сбор метаданных), Reserve (блокировка ресурсов ноды).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "id": 12,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (extension_point, le) (rate(scheduler_framework_extension_point_duration_seconds_bucket{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "P99: {{extension_point}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (extension_point) (rate(scheduler_framework_extension_point_duration_seconds_sum{instance=~\"$instance\"}[2m])) / sum by (extension_point) (rate(scheduler_framework_extension_point_duration_seconds_count{instance=~\"$instance\"}[2m]))",
+          "legendFormat": "Avg: {{extension_point}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Задержка стадий Framework (Filter, Score, PreFilter)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Самые медленные плагины планирования по среднему времени работы. Главные виновники деградации: NodeResourcesFit, PodTopologySpread, InterPodAffinity, VolumeBinding (ожидание PVC).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "id": 13,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "topk(7, sum by (plugin) (rate(scheduler_plugin_execution_duration_seconds_sum{instance=~\"$instance\"}[2m])) / sum by (plugin) (rate(scheduler_plugin_execution_duration_seconds_count{instance=~\"$instance\"}[2m])) > 0)",
+          "legendFormat": "Плагин: {{plugin}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Топ медленных плагинов (Slowest Plugins / Avg)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 48 },
+      "id": 104,
+      "title": "⚙️ Системные ресурсы и Взаимодействие с API (Saturation & Client-Go)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Потребление процессорного времени (Cores) процессом kube-scheduler. Планировщик однопоточно выполняет цикл отбора узла для каждого пода, поэтому пик на одном ядре приводит к замедлению всей очереди.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 49 },
+      "id": 14,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "rate(process_cpu_seconds_total{instance=~\"$instance\"}[2m])",
+          "legendFormat": "CPU: {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Утилизация CPU (Scheduler Cores)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Резидентная память (RSS). Планировщик кэширует полное состояние всех узлов, подов и их ресурсов. Скачок памяти свидетельствует о раздувании кэша или утечках.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 49 },
+      "id": 15,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "process_resident_memory_bytes{instance=~\"$instance\"}",
+          "legendFormat": "RSS: {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Оперативная память (Resident Memory RSS)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Время ожидания во внутреннем Rate Limiter библиотеки client-go при обращении к kube-apiserver. Если график растет — планировщик упирается в лимиты --kube-api-qps (дефолт 50) и --kube-api-burst (дефолт 100), задерживая Binding подов.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 49 },
+      "id": 16,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum(rate(rest_client_rate_limiter_duration_seconds_sum{instance=~\"$instance\"}[2m])) / sum(rate(rest_client_rate_limiter_duration_seconds_count{instance=~\"$instance\"}[2m])) or (0 * sum(rate(scheduler_schedule_attempts_total{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "Средняя задержка Rate Limiter",
+          "refId": "A"
+        }
+      ],
+      "title": "Троттлинг запросов к Kube-API (Rate Limiter Wait)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["kubernetes", "kube-scheduler", "control-plane", "scheduling", "troubleshooting"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "type": "datasource"
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "definition": "label_values(scheduler_schedule_attempts_total, instance)",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "instance",
+        "query": {
+          "query": "label_values(scheduler_schedule_attempts_total, instance)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Kubernetes / kube-scheduler Deep Observability & Troubleshooting (RU)",
+  "uid": "kube-scheduler-deep-troubleshooting-ru",
+  "version": 1
+}
