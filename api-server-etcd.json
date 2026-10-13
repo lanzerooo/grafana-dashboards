@@ -1,0 +1,1038 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "📌 Золотые сигналы Control-Plane (Executive APIServer & etcd Health)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Общая интенсивность входящих запросов к kube-apiserver в секунду (RPS). Резкие скачки отражают волны деплоев, циклы автомасштабирования или шторм запросов от сбойных операторов.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "reqps"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(apiserver_request_total{instance=~\"$apiserver_instance\"}[2m]))",
+          "legendFormat": "APIServer RPS",
+          "refId": "A"
+        }
+      ],
+      "title": "APIServer RPS",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Процент запросов к API, завершившихся серверной ошибкой 5xx. Норма: < 0.05%. Если значение > 1%, apiserver или бэкенд etcd испытывают отказ в обслуживании.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "red", "value": 2 }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "(sum(rate(apiserver_request_total{instance=~\"$apiserver_instance\",code=~\"5..\"}[2m])) / sum(rate(apiserver_request_total{instance=~\"$apiserver_instance\"}[2m]))) * 100 or (0 * sum(rate(apiserver_request_total{instance=~\"$apiserver_instance\"}[2m])))",
+          "legendFormat": "% Ошибок 5xx",
+          "refId": "A"
+        }
+      ],
+      "title": "Доля ошибок 5xx (API Errors)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "P99 / среднее время ответа kube-apiserver (без учета потоковых WATCH и CONNECT). Норма: < 200-500ms. Рост выше 1s сигнализирует о деградации etcd или медленных вебхуках.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.3 },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(apiserver_request_duration_seconds_bucket{instance=~\"$apiserver_instance\",subresource!=\"log\",verb!~\"WATCH|CONNECT\"}[2m]))) or (sum(rate(apiserver_request_duration_seconds_sum{instance=~\"$apiserver_instance\",subresource!=\"log\",verb!~\"WATCH|CONNECT\"}[2m])) / sum(rate(apiserver_request_duration_seconds_count{instance=~\"$apiserver_instance\",subresource!=\"log\",verb!~\"WATCH|CONNECT\"}[2m])))",
+          "legendFormat": "P99 / Avg Latency",
+          "refId": "A"
+        }
+      ],
+      "title": "P99 Задержка API (API Latency)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Статус кворума Raft: 1 = Кворум есть, лидер признан всеми узлами; 0 = Потеря кворума, кластер etcd перешел в аварийное состояние.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "0": { "color": "red", "text": "НЕТ КВОРУМА" }, "1": { "color": "green", "text": "КВОРУМ OK" } }, "type": "value" }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "min(etcd_server_has_leader{instance=~\"$etcd_instance\"})",
+          "legendFormat": "Кворум",
+          "refId": "A"
+        }
+      ],
+      "title": "Кворум etcd (Raft Quorum)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Критическая метрика etcd: время сброса журнала упреждающей записи WAL на диск (fsync). Норма: строго < 10ms. Превышение 15-20ms вызывает срыв Raft heartbeats и перевыборы лидера.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.01 },
+              { "color": "red", "value": 0.02 }
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{instance=~\"$etcd_instance\"}[2m]))) or (sum(rate(etcd_disk_wal_fsync_duration_seconds_sum{instance=~\"$etcd_instance\"}[2m])) / sum(rate(etcd_disk_wal_fsync_duration_seconds_count{instance=~\"$etcd_instance\"}[2m])))",
+          "legendFormat": "P99 WAL fsync",
+          "refId": "A"
+        }
+      ],
+      "title": "etcd WAL Fsync P99 (SLA < 10ms)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Процент использования выделенной квоты диска (--quota-backend-bytes, по умолчанию 2GB, макс 8GB). При приближении к 90-100% etcd включает alarm:NOSPACE и блокирует любые операции записи.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 75 },
+              { "color": "red", "value": 90 }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "(max(etcd_mvcc_db_total_size_in_bytes{instance=~\"$etcd_instance\"}) / max(etcd_server_quota_backend_bytes{instance=~\"$etcd_instance\"})) * 100",
+          "legendFormat": "% Квоты БД",
+          "refId": "A"
+        }
+      ],
+      "title": "etcd Заполнение квоты (% Quota)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "🚦 Трафик, Коды Ответов и Приоритизация API (APF & Flow Control)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Распределение интенсивности запросов к kube-apiserver по кодам ответов HTTP (2xx, 3xx, 4xx, 5xx).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "stacking": { "group": "A", "mode": "normal" } },
+          "unit": "reqps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (code) (rate(apiserver_request_total{instance=~\"$apiserver_instance\"}[2m]))",
+          "legendFormat": "HTTP {{code}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Запросы по HTTP статус-кодам (Status Codes)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Интенсивность запросов по типам операций (Verbs: GET, LIST, POST, PUT, PATCH, DELETE, WATCH). Высокая доля LIST без постраничной пагинации создает критическую нагрузку на оперативную память API-сервера.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "reqps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "id": 8,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (verb) (rate(apiserver_request_total{instance=~\"$apiserver_instance\"}[2m]))",
+          "legendFormat": "{{verb}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Интенсивность по типам операций (Verbs)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Запросы, отклоненные механизмом API Priority and Fairness (HTTP 429 Too Many Requests). Если график растет — клиенты превышают лимиты выделенных очередей FlowSchema.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 50, "lineWidth": 1 },
+          "unit": "reqps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 14 },
+      "id": 9,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (priority_level, reason) (rate(apiserver_flowcontrol_rejected_requests_total{instance=~\"$apiserver_instance\"}[2m])) or (0 * sum(rate(apiserver_request_total{instance=~\"$apiserver_instance\"}[2m])))",
+          "legendFormat": "{{priority_level}} ({{reason}})",
+          "refId": "A"
+        }
+      ],
+      "title": "Отклоненные запросы APF (HTTP 429 Throttling)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "P99 времени ожидания запроса в очередях планирования APF до начала его исполнения. Значения > 50-100ms свидетельствуют о нехватке слотов параллелизма (concurrency shares).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 14 },
+      "id": 10,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (priority_level, le) (rate(apiserver_flowcontrol_request_wait_duration_seconds_bucket{instance=~\"$apiserver_instance\"}[2m]))) or (0 * sum(rate(apiserver_request_total{instance=~\"$apiserver_instance\"}[2m])))",
+          "legendFormat": "P99 Очередь: {{priority_level}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Время ожидания в очередях APF (Queue Wait Latency)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Текущее количество запросов, находящихся в процессе исполнения прямо сейчас, с разбивкой на модифицирующие (mutating) и запросы чтения (readOnly).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 14 },
+      "id": 11,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (request_kind) (apiserver_current_inflight_requests{instance=~\"$apiserver_instance\"})",
+          "legendFormat": "In-flight: {{request_kind}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Активные In-Flight запросы (Mutating vs ReadOnly)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Топ-10 самых запрашиваемых ресурсов кластера. Позволяет мгновенно вычислить источник шторма запросов (например, частый поллинг configmaps, pods или crd).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "reqps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 22 },
+      "id": 12,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (resource) (rate(apiserver_request_total{instance=~\"$apiserver_instance\"}[2m])))",
+          "legendFormat": "Ресурс: {{resource}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Топ-10 ресурсов по нагрузке (Top Requests by Resource)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 30 },
+      "id": 102,
+      "title": "⚡ Задержки APIServer и Траблшутинг Admission Webhooks",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Квантили времени ответа kube-apiserver и средняя задержка. Если растет P99 при стабильном P50 — проблема точечная (тяжелый запрос или один медленный вебхук). Если растет P50 — деградирует вся подсистема control-plane.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 31 },
+      "id": 13,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(apiserver_request_duration_seconds_bucket{instance=~\"$apiserver_instance\",subresource!=\"log\",verb!~\"WATCH|CONNECT\"}[2m])))",
+          "legendFormat": "P99 Latency",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.90, sum by (le) (rate(apiserver_request_duration_seconds_bucket{instance=~\"$apiserver_instance\",subresource!=\"log\",verb!~\"WATCH|CONNECT\"}[2m])))",
+          "legendFormat": "P90 Latency",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(apiserver_request_duration_seconds_bucket{instance=~\"$apiserver_instance\",subresource!=\"log\",verb!~\"WATCH|CONNECT\"}[2m])))",
+          "legendFormat": "P50 Latency",
+          "refId": "C"
+        },
+        {
+          "expr": "sum(rate(apiserver_request_duration_seconds_sum{instance=~\"$apiserver_instance\",subresource!=\"log\",verb!~\"WATCH|CONNECT\"}[2m])) / sum(rate(apiserver_request_duration_seconds_count{instance=~\"$apiserver_instance\",subresource!=\"log\",verb!~\"WATCH|CONNECT\"}[2m]))",
+          "legendFormat": "Avg Latency",
+          "refId": "D"
+        }
+      ],
+      "title": "Квантили времени ответа kube-apiserver (Response Latency)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Топ-7 самых медленных комбинаций Verb + Resource по фактическому среднему времени выполнения. Позволяет мгновенно определить, какая сущность кластера создает задержки.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 31 },
+      "id": 14,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "topk(7, sum by (verb, resource) (rate(apiserver_request_duration_seconds_sum{instance=~\"$apiserver_instance\",subresource!=\"log\",verb!~\"WATCH|CONNECT\"}[2m])) / sum by (verb, resource) (rate(apiserver_request_duration_seconds_count{instance=~\"$apiserver_instance\",subresource!=\"log\",verb!~\"WATCH|CONNECT\"}[2m])) > 0)",
+          "legendFormat": "{{verb}} {{resource}} (avg)",
+          "refId": "A"
+        }
+      ],
+      "title": "Топ медленных операций по ресурсам (Slowest Verb + Resource)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Задержка ответов от внешних Admission Webhooks (OPA, Kyverno, cert-manager, Istio-injector). Если вебхук отвечает дольше 500ms или таймаутит (10s) — создание и изменение подов полностью блокируется.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 39 },
+      "id": 15,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "topk(7, histogram_quantile(0.99, sum by (name, le) (rate(apiserver_admission_webhook_admission_duration_seconds_bucket{instance=~\"$apiserver_instance\"}[2m]))))",
+          "legendFormat": "P99 Webhook: {{name}}",
+          "refId": "A"
+        },
+        {
+          "expr": "topk(7, sum by (name) (rate(apiserver_admission_webhook_admission_duration_seconds_sum{instance=~\"$apiserver_instance\"}[2m])) / sum by (name) (rate(apiserver_admission_webhook_admission_duration_seconds_count{instance=~\"$apiserver_instance\"}[2m])) > 0)",
+          "legendFormat": "Avg Webhook: {{name}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Задержка Admission Webhooks (P99 / Avg Latency)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Отказы и ошибки вызовов Admission Webhooks. Включает сетевые таймауты и отклонения запросов. При failurePolicy=Fail это приводит к сбоям создания подов.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1 },
+          "unit": "errps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 39 },
+      "id": 16,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (name, type) (rate(apiserver_admission_webhook_rejection_count{instance=~\"$apiserver_instance\"}[2m])) or (0 * sum(rate(apiserver_request_total{instance=~\"$apiserver_instance\"}[2m])))",
+          "legendFormat": "Rejection: {{name}} ({{type}})",
+          "refId": "A"
+        }
+      ],
+      "title": "Ошибки и отклонения Admission Webhooks (Rejections)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 47 },
+      "id": 103,
+      "title": "🤝 etcd Core: Raft Кворум, Лидерство и Сеть Пиров (Raft & Peers)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Текущий лидер кластера и количество смен лидера за последний час. В стабильном кластере смена лидера должна быть строго 0. Рост указывает на потерю пакетов между нодами или деградацию диска.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 48 },
+      "id": 17,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "etcd_server_is_leader{instance=~\"$etcd_instance\"}",
+          "legendFormat": "Лидер: {{instance}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(changes(etcd_server_leader_changes_seen_total{instance=~\"$etcd_instance\"}[1h]))",
+          "legendFormat": "Смен лидера за час",
+          "refId": "B"
+        }
+      ],
+      "title": "Стабильность лидера etcd (Leader Status & Flapping)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество зависших предложений Raft в очереди (pending) и сбоев фиксации (failed). Значения выше нуля означают, что лидер не успевает собрать подтверждения от большинства узлов.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 48 },
+      "id": 18,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (instance) (etcd_server_proposals_pending{instance=~\"$etcd_instance\"})",
+          "legendFormat": "Pending: {{instance}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (instance) (rate(etcd_server_proposals_failed_total{instance=~\"$etcd_instance\"}[2m])) or (0 * sum(rate(etcd_server_proposals_applied_total{instance=~\"$etcd_instance\"}[2m])))",
+          "legendFormat": "Failed / sec: {{instance}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Зависшие и сбойные предложения Raft (Proposals)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Сетевая задержка Round-Trip Time между пирами etcd (порт 2380). Норма: < 5-10ms. Всплески вызывают рассинхронизацию Raft логов и срывы выборов.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 56 },
+      "id": 19,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (To, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{instance=~\"$etcd_instance\"}[2m])))",
+          "legendFormat": "P99 RTT к: {{To}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (To) (rate(etcd_network_peer_round_trip_time_seconds_sum{instance=~\"$etcd_instance\"}[2m])) / sum by (To) (rate(etcd_network_peer_round_trip_time_seconds_count{instance=~\"$etcd_instance\"}[2m]))",
+          "legendFormat": "Avg RTT к: {{To}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Сетевой RTT между узлами etcd (Peer RTT Latency)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Интенсивность gRPC вызовов к etcd со стороны клиентов (главным образом apiserver): Range (чтение), Put (запись), DeleteRange (удаление), Txn (транзакции).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "stacking": { "group": "A", "mode": "normal" } },
+          "unit": "reqps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 56 },
+      "id": 20,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (grpc_method) (rate(grpc_server_handled_total{instance=~\"$etcd_instance\",grpc_service=\"etcdserverpb.KV\"}[2m]))",
+          "legendFormat": "gRPC {{grpc_method}}",
+          "refId": "A"
+        }
+      ],
+      "title": "gRPC операции клиентов с etcd (Client Calls by Method)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 64 },
+      "id": 104,
+      "title": "💽 etcd Дисковый I/O, Хранилище MVCC и Алармы (Disk, DB Size & Quotas)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Критическая панель диска: время сброса WAL на диск (fsync) и фиксации транзакций bbolt (commit). Обе метрики должны быть < 10-25ms. При пиках дисковой очереди etcd начинает терять статус лидера.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.01 },
+              { "color": "red", "value": 0.025 }
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 65 },
+      "id": 21,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (instance, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{instance=~\"$etcd_instance\"}[2m])))",
+          "legendFormat": "P99 WAL fsync: {{instance}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (instance, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{instance=~\"$etcd_instance\"}[2m])))",
+          "legendFormat": "P99 Backend commit: {{instance}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Задержки диска etcd: WAL Fsync vs Backend Commit (P99)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Физический размер файла базы данных bbolt, фактически используемый объем данных (In-Use) и жесткий лимит квоты хранилища.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 65 },
+      "id": 22,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "max by (instance) (etcd_mvcc_db_total_size_in_bytes{instance=~\"$etcd_instance\"})",
+          "legendFormat": "Физический размер файла БД: {{instance}}",
+          "refId": "A"
+        },
+        {
+          "expr": "max by (instance) (etcd_mvcc_db_total_size_in_use_in_bytes{instance=~\"$etcd_instance\"})",
+          "legendFormat": "Полезный объем (In-Use): {{instance}}",
+          "refId": "B"
+        },
+        {
+          "expr": "max(etcd_server_quota_backend_bytes{instance=~\"$etcd_instance\"})",
+          "legendFormat": "Лимит квоты (Quota Limit)",
+          "refId": "C"
+        }
+      ],
+      "title": "Размер БД etcd vs Полезный объем и Квота",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Процент свободного места внутри bbolt файла базы данных (фрагментация). Рассчитывается как (TotalSize - InUseSize) / TotalSize * 100. Если фрагментация > 50%, требуется etcdctl defrag.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 40 },
+              { "color": "red", "value": 60 }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 73 },
+      "id": 23,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "((max by (instance) (etcd_mvcc_db_total_size_in_bytes{instance=~\"$etcd_instance\"}) - max by (instance) (etcd_mvcc_db_total_size_in_use_in_bytes{instance=~\"$etcd_instance\"})) / max by (instance) (etcd_mvcc_db_total_size_in_bytes{instance=~\"$etcd_instance\"})) * 100",
+          "legendFormat": "Фрагментация: {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Процент фрагментации базы данных (% Fragmentation)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Активные системные аварийные сигналы etcd: NOSPACE (превышение квоты базы), CORRUPT (повреждение данных). В норме график строго 0.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 73 },
+      "id": 24,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(etcd_server_alarm_state{instance=~\"$etcd_instance\"}) or (0 * sum(etcd_server_has_leader{instance=~\"$etcd_instance\"}))",
+          "legendFormat": "Активных алармов etcd",
+          "refId": "A"
+        }
+      ],
+      "title": "Аварийные сигналы etcd (Alarms: NOSPACE / CORRUPT)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Частота компактизации старых ревизий (Compaction Rate) и общее количество ключей MVCC в памяти. Показывает темп сжатия истории изменений.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 73 },
+      "id": 25,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (instance) (rate(etcd_debugging_mvcc_db_compaction_total_duration_milliseconds_count{instance=~\"$etcd_instance\"}[2m])) or sum by (instance) (rate(etcd_mvcc_db_compaction_total_duration_milliseconds_count{instance=~\"$etcd_instance\"}[2m]))",
+          "legendFormat": "Компактизаций / сек",
+          "refId": "A"
+        }
+      ],
+      "title": "Частота компактизации базы (Compaction Rate)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 81 },
+      "id": 105,
+      "title": "👁️ Watchers, Кэш (Watch Cache) и Стык APIServer ↔ etcd",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Сквозная задержка вызовов из kube-apiserver в etcd по операциям (get, list, create, update, delete). Значения выше 50ms вызывают зависания API.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 82 },
+      "id": 26,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (operation, le) (rate(apiserver_storage_operation_duration_seconds_bucket{instance=~\"$apiserver_instance\"}[2m]))) or histogram_quantile(0.99, sum by (operation, le) (rate(etcd_request_duration_seconds_bucket{instance=~\"$apiserver_instance\"}[2m])))",
+          "legendFormat": "P99 {{operation}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (operation) (rate(etcd_request_duration_seconds_sum{instance=~\"$apiserver_instance\"}[2m])) / sum by (operation) (rate(etcd_request_duration_seconds_count{instance=~\"$apiserver_instance\"}[2m]))",
+          "legendFormat": "Avg {{operation}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Задержка операций APIServer ↔ etcd (Storage Latency)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Ошибки операций хранения apiserver: сбои генерации ключей шифрования (data key generation failures) и ошибки записи в etcd. Должно быть строго 0.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1 },
+          "unit": "errps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 82 },
+      "id": 27,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (operation) (rate(apiserver_storage_data_key_generation_failures_total{instance=~\"$apiserver_instance\"}[2m])) or (0 * sum(rate(apiserver_request_total{instance=~\"$apiserver_instance\"}[2m])))",
+          "legendFormat": "Key gen failures: {{operation}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (operation) (rate(apiserver_storage_operation_duration_seconds_count{status!~\"success|OK\",instance=~\"$apiserver_instance\"}[2m])) or (0 * sum(rate(apiserver_request_total{instance=~\"$apiserver_instance\"}[2m])))",
+          "legendFormat": "Failed storage ops: {{operation}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Ошибки уровня хранения (Storage Failures)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество активных Watchers в APIServer и стримов наблюдения в etcd. Рост без стабилизации — признак утечки соединений в клиентах или операторах.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 90 },
+      "id": 28,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "topk(7, sum by (resource) (apiserver_registered_watchers{instance=~\"$apiserver_instance\"}))",
+          "legendFormat": "APIServer Watch: {{resource}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(etcd_debugging_mvcc_watch_stream_total{instance=~\"$etcd_instance\"}) or sum(etcd_mvcc_watch_stream_total{instance=~\"$etcd_instance\"})",
+          "legendFormat": "etcd Watch Streams",
+          "refId": "B"
+        }
+      ],
+      "title": "Активные Watchers и Стримы (Watch Load)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Снижения емкости Watch Cache и промахи кэша. Если происходят сбросы — клиенты не получают инкрементальные события и вынуждены выполнять тяжелый полный LIST в etcd.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 40, "lineWidth": 1 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 90 },
+      "id": 29,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (resource) (rate(apiserver_watch_cache_capacity_decrease_total{instance=~\"$apiserver_instance\"}[2m])) or (0 * sum(rate(apiserver_request_total{instance=~\"$apiserver_instance\"}[2m])))",
+          "legendFormat": "Watch cache drops: {{resource}}",
+          "refId": "A"
+        },
+        {
+          "expr": "topk(7, sum by (resource) (apiserver_storage_objects{instance=~\"$apiserver_instance\"}))",
+          "legendFormat": "Объектов в кэше: {{resource}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Деградация Watch Cache и Объекты в памяти (Cache & Storage Objects)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 98 },
+      "id": 106,
+      "title": "⚙️ Системные Ресурсы Control-Plane (Saturation & Runtime)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Потребление процессорного времени (Cores) процессами kube-apiserver и etcd. Позволяет сопоставить всплески нагрузки на CPU с конкретными вызовами.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 99 },
+      "id": 30,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "rate(process_cpu_seconds_total{job=~\"apiserver.*|kube-apiserver.*\",instance=~\"$apiserver_instance\"}[2m])",
+          "legendFormat": "APIServer CPU: {{instance}}",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(process_cpu_seconds_total{job=~\"etcd.*\",instance=~\"$etcd_instance\"}[2m])",
+          "legendFormat": "etcd CPU: {{instance}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Утилизация CPU (APIServer vs etcd)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Физическая оперативная память (RSS). Утечка памяти в apiserver или рост etcd выше доступной памяти хоста ведет к OOMKilled ноды master.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 99 },
+      "id": 31,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "process_resident_memory_bytes{job=~\"apiserver.*|kube-apiserver.*\",instance=~\"$apiserver_instance\"}",
+          "legendFormat": "APIServer RSS: {{instance}}",
+          "refId": "A"
+        },
+        {
+          "expr": "process_resident_memory_bytes{job=~\"etcd.*\",instance=~\"$etcd_instance\"}",
+          "legendFormat": "etcd RSS: {{instance}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Потребление памяти (Resident Memory RSS)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество активных Go-горутин. Резкий экспоненциальный взлет горутин — индикатор зависания HTTP/gRPC вызовов или взаимных блокировок (deadlock).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 99 },
+      "id": 32,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "go_goroutines{job=~\"apiserver.*|kube-apiserver.*\",instance=~\"$apiserver_instance\"}",
+          "legendFormat": "APIServer Goroutines: {{instance}}",
+          "refId": "A"
+        },
+        {
+          "expr": "go_goroutines{job=~\"etcd.*\",instance=~\"$etcd_instance\"}",
+          "legendFormat": "etcd Goroutines: {{instance}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Активные Go-горутины (Индикатор зависаний)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["kubernetes", "kube-apiserver", "etcd", "control-plane", "troubleshooting", "sre"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "type": "datasource"
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "definition": "label_values(apiserver_request_total, instance)",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "apiserver_instance",
+        "query": {
+          "query": "label_values(apiserver_request_total, instance)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "definition": "label_values(etcd_server_has_leader, instance) or label_values(etcd_disk_wal_fsync_duration_seconds_count, instance)",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "etcd_instance",
+        "query": {
+          "query": "label_values(etcd_server_has_leader, instance) or label_values(etcd_disk_wal_fsync_duration_seconds_count, instance)",
+          "refId": "StandardVariableQuery2"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Kubernetes / APIServer & etcd Master Deep Observability (RU)",
+  "uid": "k8s-apiserver-etcd-master-deep-ru",
+  "version": 2
+}
