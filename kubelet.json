@@ -1,0 +1,573 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "📌 Золотые сигналы Kubelet и PLEG (Golden Signals & PLEG Health)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Критическая метрика здоровья ноды: 99-й перцентиль времени выполнения цикла PLEG (Pod Lifecycle Event Generator). Норма: строго < 1s. Если P99 > 3-5s, kubelet выставит ошибку 'PLEG is not healthy' и нода перейдет в статус NotReady.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 3 }
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(kubelet_pleg_relist_duration_seconds_bucket{instance=~\"$instance\"}[2m]))) or (sum(rate(kubelet_pleg_relist_duration_seconds_sum{instance=~\"$instance\"}[2m])) / sum(rate(kubelet_pleg_relist_duration_seconds_count{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "P99 PLEG Relist Duration",
+          "refId": "A"
+        }
+      ],
+      "title": "P99 Задержка PLEG (PLEG Relist Latency)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "99-й перцентиль времени выполнения одного цикла воркера синхронизации пода (Pod Worker Duration). Отражает полную задержку применения желаемого состояния пода на ноде. Норма: < 500ms.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "red", "value": 2 }
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(kubelet_pod_worker_duration_seconds_bucket{instance=~\"$instance\"}[2m]))) or (sum(rate(kubelet_pod_worker_duration_seconds_sum{instance=~\"$instance\"}[2m])) / sum(rate(kubelet_pod_worker_duration_seconds_count{instance=~\"$instance\"}[2m]))) or histogram_quantile(0.99, sum by (le) (rate(kubelet_pod_sync_duration_seconds_bucket{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "P99 Pod Worker Latency",
+          "refId": "A"
+        }
+      ],
+      "title": "P99 Синхронизация подов (Pod Worker Duration)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество активных запущенных подов и контейнеров на выбранном узле. Позволяет оценить фактическую плотность упаковки рабочих нагрузок.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(kubelet_running_pods{instance=~\"$instance\"})",
+          "legendFormat": "Подов",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(kubelet_running_containers{instance=~\"$instance\"})",
+          "legendFormat": "Контейнеров",
+          "refId": "B"
+        }
+      ],
+      "title": "Запущенные Поды и Контейнеры",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Суммарное количество подов, принудительно вытесненных kubelet из-за нехватки локальных ресурсов (память, inode, место на диске, PID). В здоровом кластере должно быть строго 0.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(changes(kubelet_evictions{instance=~\"$instance\"}[1h])) or sum(changes(kubelet_node_config_error{instance=~\"$instance\"}[1h])) or (0 * sum(kubelet_running_pods{instance=~\"$instance\"}))",
+          "legendFormat": "Вытеснений за час",
+          "refId": "A"
+        }
+      ],
+      "title": "Вытеснения подов (Evictions / 1h)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "⚡ CRI Контейнерный Рантайм: Задержки Containerd / CRI-O (Runtime Latency)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "P99 времени выполнения вызовов к CRI-рантайму по типам операций. Главные маркеры зависания: RunPodSandbox (создание сетевого неймспейса и CNI), CreateContainer, StartContainer, StopPodSandbox.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "id": 5,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "topk(7, histogram_quantile(0.99, sum by (operation_type, le) (rate(kubelet_runtime_operations_duration_seconds_bucket{instance=~\"$instance\"}[2m]))))",
+          "legendFormat": "P99 {{operation_type}}",
+          "refId": "A"
+        },
+        {
+          "expr": "topk(7, sum by (operation_type) (rate(kubelet_runtime_operations_duration_seconds_sum{instance=~\"$instance\"}[2m])) / sum by (operation_type) (rate(kubelet_runtime_operations_duration_seconds_count{instance=~\"$instance\"}[2m])) > 0)",
+          "legendFormat": "Avg {{operation_type}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Задержка вызовов CRI по операциям (CRI Operation Latency)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Интенсивность запросов к контейнерному рантайму в секунду (вызовы gRPC к unix-сокету containerd/crio).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "stacking": { "group": "A", "mode": "normal" } },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "id": 6,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (operation_type) (rate(kubelet_runtime_operations_duration_seconds_count{instance=~\"$instance\"}[2m]))",
+          "legendFormat": "CRI {{operation_type}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Интенсивность CRI операций (CRI Operation Rate)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество ошибок при взаимодействии с CRI сокетом. Норма: строго 0. Рост ошибок свидетельствует о падении демона containerd/crio, багах ядра с cgroups v2 или битых слоях overlay2.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1 },
+          "unit": "errps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (operation_type) (rate(kubelet_runtime_operations_errors_total{instance=~\"$instance\"}[2m])) or (0 * sum(rate(kubelet_runtime_operations_duration_seconds_count{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "Ошибка CRI: {{operation_type}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Ошибки контейнерного рантайма (CRI Runtime Errors)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Глубина очереди цикла PLEG (relist interval). Показывает время между последовательными итерациями инспекции состояния контейнеров. Скачок выше 1s означает начало деградации PLEG.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "id": 8,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(kubelet_pleg_relist_interval_seconds_bucket{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "P99 PLEG Interval",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(kubelet_pleg_relist_interval_seconds_sum{instance=~\"$instance\"}[2m])) / sum(rate(kubelet_pleg_relist_interval_seconds_count{instance=~\"$instance\"}[2m]))",
+          "legendFormat": "Avg PLEG Interval",
+          "refId": "B"
+        }
+      ],
+      "title": "Интервал между циклами PLEG (PLEG Relist Interval)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "id": 102,
+      "title": "💾 CSI Storage: Монтирование и отмонтирование томов (Volume Operations)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "P99 и средняя задержка выполнения операций с постоянными томами: volume_mount, volume_fs_resize, volume_attach, verify_volumes. Если монтирование длится > 30-60s, CSI драйвер завис на RPC вызовах к СХД.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 23 },
+      "id": 9,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "topk(7, histogram_quantile(0.99, sum by (operation_name, le) (rate(storage_operation_duration_seconds_bucket{instance=~\"$instance\"}[2m]))))",
+          "legendFormat": "P99 {{operation_name}}",
+          "refId": "A"
+        },
+        {
+          "expr": "topk(7, sum by (operation_name) (rate(storage_operation_duration_seconds_sum{instance=~\"$instance\"}[2m])) / sum by (operation_name) (rate(storage_operation_duration_seconds_count{instance=~\"$instance\"}[2m])) > 0)",
+          "legendFormat": "Avg {{operation_name}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Задержка операций с томами CSI (Storage Operation Duration)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество ошибок при монтировании, расширении файловой системы или аттаче томов. Рост графика объясняет, почему поды на ноде зависают в ContainerCreating.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1 },
+          "unit": "errps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 23 },
+      "id": 10,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (operation_name) (rate(storage_operation_errors_total{instance=~\"$instance\"}[2m])) or (0 * sum(rate(storage_operation_duration_seconds_count{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "Сбой CSI: {{operation_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Ошибки монтирования томов CSI (Storage Operation Errors)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество операций с томами, выполняющихся прямо сейчас (In-Flight / Pending). Накопление висящих операций указывает на deadlock в CSI плагине или блокировку ядра при монтировании NFS/iSCSI/Block устройства.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 31 },
+      "id": 11,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (operation_name) (storage_operation_status_and_duration_seconds_count{status=\"InProgress\",instance=~\"$instance\"}) or (0 * sum(kubelet_running_pods{instance=~\"$instance\"}))",
+          "legendFormat": "В процессе: {{operation_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Активные операции с хранилищем (In-Flight Volume Operations)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 39 },
+      "id": 103,
+      "title": "🚨 Пороги вытеснения и Давление на узел (Evictions & Node Pressure)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Динамика вытеснения подов с разбивкой по причинам: MemoryPressure (исчерпание RAM), DiskPressure (заполнение nodefs или imagefs), PIDPressure (исчерпание pid_max).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 50, "lineWidth": 1 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "id": 12,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (eviction_signal) (rate(kubelet_evictions{instance=~\"$instance\"}[2m])) or (0 * sum(kubelet_running_pods{instance=~\"$instance\"}))",
+          "legendFormat": "Причина вытеснения: {{eviction_signal}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Вытеснение подов по сигналам (Pod Evictions by Signal)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Свободное место на системном диске ноды (nodefs) и хранилище контейнерных образов (imagefs). Достижение порога eviction-hard (по умолчанию < 10-15%) переводит ноду в DiskPressure и запускает агрессивное удаление подов и образов.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "id": 13,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "node_filesystem_avail_bytes{instance=~\"$instance\",mountpoint=\"/\"}",
+          "legendFormat": "Свободно на nodefs (/)",
+          "refId": "A"
+        },
+        {
+          "expr": "node_filesystem_avail_bytes{instance=~\"$instance\",mountpoint=~\"/var/lib/containerd|/var/lib/docker\"} or (0 * sum(kubelet_running_pods{instance=~\"$instance\"}))",
+          "legendFormat": "Свободно на imagefs",
+          "refId": "B"
+        }
+      ],
+      "title": "Свободное место на дисках ноды (Available NodeFS / ImageFS)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 48 },
+      "id": 104,
+      "title": "🔄 Пробы Проверки (Probes), Взаимодействие с API и Ресурсы",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "P99 времени выполнения проверок контейнеров: liveness, readiness, startup. Если время выполнения пробы превышает probe.timeoutSeconds, kubelet убивает или выводит контейнер из балансировки Service.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 49 },
+      "id": 14,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "topk(7, histogram_quantile(0.99, sum by (probe_type, le) (rate(prober_probe_duration_seconds_bucket{instance=~\"$instance\"}[2m]))))",
+          "legendFormat": "P99 {{probe_type}}",
+          "refId": "A"
+        },
+        {
+          "expr": "topk(7, sum by (probe_type) (rate(prober_probe_duration_seconds_sum{instance=~\"$instance\"}[2m])) / sum by (probe_type) (rate(prober_probe_duration_seconds_count{instance=~\"$instance\"}[2m])) > 0)",
+          "legendFormat": "Avg {{probe_type}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Задержка проверок контейнеров (Liveness / Readiness Probes)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество неудачных проверок проб (Probe Failures). Всплески показывают, что приложения не отвечают на HTTP/TCP/Exec чеки вовремя.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 50, "lineWidth": 1 },
+          "unit": "errps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 49 },
+      "id": 15,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (probe_type) (rate(prober_probe_total{result=\"failed\",instance=~\"$instance\"}[2m])) or (0 * sum(kubelet_running_pods{instance=~\"$instance\"}))",
+          "legendFormat": "Провалов чеков: {{probe_type}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Ошибки проверок приложений (Probe Failures)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Потребление процессорного времени (Cores) процессом kubelet на узле. Рост CPU происходит при частых опросах PLEG, сотнях работающих подов или плохом cgroup v1 учете.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 57 },
+      "id": 16,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "rate(process_cpu_seconds_total{job=~\"kubelet.*\",instance=~\"$instance\"}[2m])",
+          "legendFormat": "CPU Cores: {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Утилизация CPU (kubelet Cores)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Резидентная память процесса kubelet (RSS). В больших кластерах может достигать 1-2GB. Постоянный рост свидетельствует об утечке дескрипторов или кэша CSI томов.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 57 },
+      "id": 17,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "process_resident_memory_bytes{job=~\"kubelet.*\",instance=~\"$instance\"}",
+          "legendFormat": "RSS: {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Оперативная память kubelet (Resident Memory RSS)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество активных Go-горутин внутри kubelet. Экспоненциальный взлет горутин — ключевой признак зависших системных вызовов к containerd, зависаний CSI сокетов или таймаутов Kube-API.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 57 },
+      "id": 18,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "go_goroutines{job=~\"kubelet.*\",instance=~\"$instance\"}",
+          "legendFormat": "Горутины: {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Активные Go-горутины (Goroutines)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["kubernetes", "kubelet", "cri", "csi", "pleg", "troubleshooting"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "type": "datasource"
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "definition": "label_values(kubelet_running_pods, instance)",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "instance",
+        "query": {
+          "query": "label_values(kubelet_running_pods, instance)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Kubernetes / Kubelet Deep Observability & Troubleshooting (RU)",
+  "uid": "k8s-kubelet-deep-troubleshooting-ru",
+  "version": 1
+}
