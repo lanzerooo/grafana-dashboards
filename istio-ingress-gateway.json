@@ -1,0 +1,651 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "📌 Золотые сигналы Edge Ingress (Golden Signals)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Общий входящий трафик на поды Ingress Gateway в запросах в секунду (RPS). Позволяет мгновенно оценить внешнюю нагрузку на весь кластер.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "reqps"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(istio_requests_total{reporter=\"source\",source_workload=~\"$workload\",pod=~\"$pod\"}[2m])) or sum(rate(envoy_http_downstream_rq_total{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Входящий RPS",
+          "refId": "A"
+        }
+      ],
+      "title": "Общий входящий RPS (Edge Traffic)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Процент запросов, завершившихся серверной ошибкой 5xx (500, 502, 503, 504). Норма: < 0.1%. Значения выше 1% означают отказ внутренних сервисов, таймауты бэкендов или отсутствие маршрутов в VirtualService.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "red", "value": 2 }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "(sum(rate(istio_requests_total{reporter=\"source\",source_workload=~\"$workload\",pod=~\"$pod\",response_code=~\"5..\"}[2m])) / sum(rate(istio_requests_total{reporter=\"source\",source_workload=~\"$workload\",pod=~\"$pod\"}[2m]))) * 100 or (0 * sum(rate(envoy_http_downstream_rq_total{pod=~\"$pod\"}[2m])))",
+          "legendFormat": "% Ошибок 5xx",
+          "refId": "A"
+        }
+      ],
+      "title": "Доля серверных ошибок (% 5xx Errors)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "99-й перцентиль времени ответа шлюза клиенту (сквозная задержка Edge-to-Client). Включает время обработки Envoy и время ответа бэкенда. Норма: < 200-500ms.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.3 },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "(histogram_quantile(0.99, sum by (le) (rate(istio_request_duration_milliseconds_bucket{reporter=\"source\",source_workload=~\"$workload\",pod=~\"$pod\"}[2m]))) / 1000) or ((sum(rate(istio_request_duration_milliseconds_sum{reporter=\"source\",source_workload=~\"$workload\",pod=~\"$pod\"}[2m])) / sum(rate(istio_request_duration_milliseconds_count{reporter=\"source\",source_workload=~\"$workload\",pod=~\"$pod\"}[2m]))) / 1000)",
+          "legendFormat": "P99 / Avg Latency",
+          "refId": "A"
+        }
+      ],
+      "title": "P99 Задержка ответа клиенту (Edge Latency)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество открытых активных TCP соединений от внешних клиентов к шлюзу прямо сейчас. Рост соединений при падении RPS означает зависшие Keep-Alive сессии или атаку типа Slowloris.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(envoy_http_downstream_cx_active{pod=~\"$pod\"}) or sum(envoy_tcp_downstream_cx_active{pod=~\"$pod\"})",
+          "legendFormat": "Активные соединения",
+          "refId": "A"
+        }
+      ],
+      "title": "Активные клиентские соединения (Active Connections)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "🚩 Response Flags Envoy & Анализ Сбоев (Главная панель Траблшутинга)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Ключевая панель траблшутинга Envoy: UH = нет здоровых подов бэкенда (503); NR = нет маршрута в VirtualService (404); UT = таймаут ожидания ответа бэкенда (504); DC = клиент сам оборвал соединение (499); UF = сбой TCP соединения к бэкенду; UO = переполнение очередей/Circuit Breaker (503).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "id": 5,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (response_flags) (rate(istio_requests_total{reporter=\"source\",source_workload=~\"$workload\",pod=~\"$pod\",response_flags!=\"-\"}[2m])) or (0 * sum(rate(envoy_http_downstream_rq_total{pod=~\"$pod\"}[2m])))",
+          "legendFormat": "Envoy Flag: {{response_flags}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Флаги ошибок Envoy (Response Flags: UH, NR, UT, DC, UF, UO)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Разбивка всех входящих запросов по HTTP статус-кодам: 2xx (успех), 3xx (редиректы), 4xx (ошибки клиента), 5xx (сбои шлюза/сервисов).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "stacking": { "group": "A", "mode": "normal" } },
+          "unit": "reqps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "id": 6,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (response_code) (rate(istio_requests_total{reporter=\"source\",source_workload=~\"$workload\",pod=~\"$pod\"}[2m]))",
+          "legendFormat": "HTTP {{response_code}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Входящий трафик по кодам ответов (HTTP Codes)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Топ-7 виртуальных хостов (доменов) по интенсивности ошибок 5xx. Позволяет мгновенно изолировать сбойный сайт/API среди сотен доменов, обслуживаемых шлюзом.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 50, "lineWidth": 1 },
+          "unit": "errps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "topk(7, sum by (destination_service_name) (rate(istio_requests_total{reporter=\"source\",source_workload=~\"$workload\",pod=~\"$pod\",response_code=~\"5..\"}[2m])))",
+          "legendFormat": "Хост/Сервис: {{destination_service_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Топ сервисов с ошибками 5xx (Top Failing Services)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Топ-10 самых нагруженных доменов (VirtualHosts), настроенных в ресурсах Gateway и VirtualService.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "reqps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "id": 8,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (destination_service_name) (rate(istio_requests_total{reporter=\"source\",source_workload=~\"$workload\",pod=~\"$pod\"}[2m])))",
+          "legendFormat": "{{destination_service_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Топ сервисов по объему трафика (Top Virtual Hosts RPS)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "id": 102,
+      "title": "⚡ Задержки (Latency): Клиент vs Upstream Кластеры",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Квантили P50, P90, P99 времени ответа шлюза клиенту. Если P99 резко уходит вверх, а P50 низкий — тормозит конкретный микросервис или длинный запрос.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 23 },
+      "id": 9,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(istio_request_duration_milliseconds_bucket{reporter=\"source\",source_workload=~\"$workload\",pod=~\"$pod\"}[2m]))) / 1000",
+          "legendFormat": "P99 Edge Latency",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.90, sum by (le) (rate(istio_request_duration_milliseconds_bucket{reporter=\"source\",source_workload=~\"$workload\",pod=~\"$pod\"}[2m]))) / 1000",
+          "legendFormat": "P90 Edge Latency",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(istio_request_duration_milliseconds_bucket{reporter=\"source\",source_workload=~\"$workload\",pod=~\"$pod\"}[2m]))) / 1000",
+          "legendFormat": "P50 Edge Latency",
+          "refId": "C"
+        },
+        {
+          "expr": "(sum(rate(istio_request_duration_milliseconds_sum{reporter=\"source\",source_workload=~\"$workload\",pod=~\"$pod\"}[2m])) / sum(rate(istio_request_duration_milliseconds_count{reporter=\"source\",source_workload=~\"$workload\",pod=~\"$pod\"}[2m]))) / 1000",
+          "legendFormat": "Avg Edge Latency",
+          "refId": "D"
+        }
+      ],
+      "title": "Квантили времени ответа клиенту (Client Response Latency)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Время установки TCP / mTLS соединения от Ingress шлюза к целевым подам (Upstream Connect Duration). Норма: < 5-10ms. Если задержка > 50-100ms — CNI оверлей перегружен или ноды испытывают сетевой голод.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 23 },
+      "id": 10,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "topk(7, histogram_quantile(0.99, sum by (cluster_name, le) (rate(envoy_cluster_upstream_cx_connect_ms_bucket{pod=~\"$pod\"}[2m]))) / 1000)",
+          "legendFormat": "P99 Connect: {{cluster_name}}",
+          "refId": "A"
+        },
+        {
+          "expr": "topk(7, (sum by (cluster_name) (rate(envoy_cluster_upstream_cx_connect_ms_sum{pod=~\"$pod\"}[2m])) / sum by (cluster_name) (rate(envoy_cluster_upstream_cx_connect_ms_count{pod=~\"$pod\"}[2m]))) / 1000 > 0)",
+          "legendFormat": "Avg Connect: {{cluster_name}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Задержка TCP подключения к бэкендам (Upstream Connect Latency)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Топ самых медленных бэкенд-сервисов по времени генерации ответа (P99). Позволяет однозначно доказать, что задержка происходит на стороне приложения, а не на сетевом шлюзе.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 31 },
+      "id": 11,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "topk(7, histogram_quantile(0.99, sum by (destination_service_name, le) (rate(istio_request_duration_milliseconds_bucket{reporter=\"source\",source_workload=~\"$workload\",pod=~\"$pod\"}[2m]))) / 1000)",
+          "legendFormat": "P99 {{destination_service_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Топ медленных бэкендов (Slowest Upstream Services P99)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Частота повторных попыток запросов (Retries) к бэкенд-подам при получении 503 или таймаутов, настроенных в VirtualService (spec.http[].retries).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 50, "lineWidth": 1 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 31 },
+      "id": 12,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "topk(7, sum by (cluster_name) (rate(envoy_cluster_upstream_rq_retry{pod=~\"$pod\"}[2m]))) or (0 * sum(rate(envoy_http_downstream_rq_total{pod=~\"$pod\"}[2m])))",
+          "legendFormat": "Ретраи к кластеру: {{cluster_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Ретраи к внутренним сервисам (Upstream Retries)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 39 },
+      "id": 103,
+      "title": "🔒 TLS / SSL Сертификаты и Безопасность Соединений",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Интенсивность рукопожатий TLS (TLS Handshakes) в секунду. Всплески показывают наплыв новых уникальных HTTPS-клиентов без переиспользования сессий (Session Resumption / TLS Tickets).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 40 },
+      "id": 13,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum(rate(envoy_ssl_handshake{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "TLS Handshakes / сек",
+          "refId": "A"
+        }
+      ],
+      "title": "Частота TLS Handshakes (HTTPS New Connections)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество ошибок TLS рукопожатий (клиент не поддерживает шифры, битый SNI, разрыв handshake). В норме график близок к нулю.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1 },
+          "unit": "errps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 40 },
+      "id": 14,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum(rate(envoy_ssl_connection_error{pod=~\"$pod\"}[2m])) or (0 * sum(rate(envoy_http_downstream_rq_total{pod=~\"$pod\"}[2m])))",
+          "legendFormat": "Ошибки TLS Handshake",
+          "refId": "A"
+        }
+      ],
+      "title": "Сбои TLS Handshake (Connection Errors)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество дней до истечения срока действия публичных SSL-сертификатов, загруженных в шлюз через SDS или K8s Secret. Если значение падает ниже 14-30 дней — cert-manager не смог выполнить автопродление.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 15 },
+              { "color": "green", "value": 30 }
+            ]
+          },
+          "unit": "d"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 40 },
+      "id": 15,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "min by (pod) (envoy_server_days_until_first_cert_expiring{pod=~\"$pod\"}) or min by (pod) ((envoy_sds_certificate_expiration_timestamp{pod=~\"$pod\"} - time()) / 86400)",
+          "legendFormat": "Дней до истечения: {{pod}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Срок действия SSL сертификатов (Days to Expiry)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 48 },
+      "id": 104,
+      "title": "🛡️ Circuit Breaking, Очереди и Буферизация (Resilience)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Срабатывания автоматической защиты Circuit Breaking (DestinationRule: connectionPool.tcp.maxConnections или maxPendingRequests). При превышении лимитов Envoy мгновенно отсекает избыточные запросы флагом UO.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 49 },
+      "id": 16,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "topk(7, sum by (cluster_name) (rate(envoy_cluster_circuit_breakers_default_cx_open{pod=~\"$pod\"}[2m]))) or (0 * sum(rate(envoy_http_downstream_rq_total{pod=~\"$pod\"}[2m])))",
+          "legendFormat": "Open Breaker: {{cluster_name}}",
+          "refId": "A"
+        },
+        {
+          "expr": "topk(7, sum by (cluster_name) (rate(envoy_cluster_circuit_breakers_default_rq_pending_open{pod=~\"$pod\"}[2m]))) or (0 * sum(rate(envoy_http_downstream_rq_total{pod=~\"$pod\"}[2m])))",
+          "legendFormat": "Pending Queue Full: {{cluster_name}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Срабатывания Circuit Breaker (Connection / Queue Limit)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество пауз чтения из клиентских сокетов из-за переполнения сетевых буферов Envoy (Downstream Flow Control). Рост графика указывает на то, что медленные клиенты (mobile/3G) медленно вычитывают тяжелые ответы, забивая буферы памяти шлюза.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 49 },
+      "id": 17,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum(rate(envoy_http_downstream_flow_control_paused_reading_total{pod=~\"$pod\"}[2m])) or (0 * sum(rate(envoy_http_downstream_rq_total{pod=~\"$pod\"}[2m])))",
+          "legendFormat": "Пауз чтения / сек",
+          "refId": "A"
+        }
+      ],
+      "title": "Буферизация и Flow Control (Slow Clients Buffer Overrun)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 57 },
+      "id": 105,
+      "title": "⚙️ Системные ресурсы подов Ingress Gateway (Saturation & Workers)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Потребление процессорного времени (CPU Cores) каждым инстансом Ingress Gateway. Если CPU приближается к лимиту, Event Loop Envoy начинает тормозить, провоцируя лавинообразный рост задержек.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 58 },
+      "id": 18,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{container=\"istio-proxy\",pod=~\"$pod\"}[2m]))",
+          "legendFormat": "CPU: {{pod}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Утилизация CPU (Ingress Gateway Cores)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Оперативная память, фактически аллоцированная Envoy (Memory Allocated), в сравнении с общим Working Set контейнера. Позволяет выявить утечку памяти в HTTP фильтрах или кэше TLS.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 58 },
+      "id": 19,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (pod) (container_memory_working_set_bytes{container=\"istio-proxy\",pod=~\"$pod\"})",
+          "legendFormat": "Working Set RSS: {{pod}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (pod) (envoy_server_memory_allocated{pod=~\"$pod\"})",
+          "legendFormat": "Envoy Allocated: {{pod}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Потребление памяти (Resident & Envoy Allocated)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Задержка цикла опроса воркеров Envoy (Worker Poll Delay). Норма: < 1-2ms. Если задержка > 10-20ms — воркеры Envoy перегружены блокирующими вызовами (например, тяжелыми lua/wasm скриптами или CPU throttling).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 58 },
+      "id": 20,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(envoy_server_worker_0_poll_delay_us_bucket{pod=~\"$pod\"}[2m]))) / 1000000 or (0 * sum(rate(envoy_http_downstream_rq_total{pod=~\"$pod\"}[2m])))",
+          "legendFormat": "P99 Worker Event Loop Delay",
+          "refId": "A"
+        }
+      ],
+      "title": "Задержка Event Loop воркеров (Worker Poll Delay)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["kubernetes", "istio", "ingress", "gateway", "envoy", "troubleshooting"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "type": "datasource"
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "definition": "label_values(istio_requests_total{source_workload=~\".*ingress.*|istio-ingressgateway\"}, source_workload)",
+        "hide": 0,
+        "includeAll": true,
+        "multi": false,
+        "name": "workload",
+        "query": {
+          "query": "label_values(istio_requests_total{source_workload=~\".*ingress.*|istio-ingressgateway\"}, source_workload)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "definition": "label_values(istio_requests_total{source_workload=~\"$workload\"}, pod)",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "pod",
+        "query": {
+          "query": "label_values(istio_requests_total{source_workload=~\"$workload\"}, pod)",
+          "refId": "StandardVariableQuery2"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Kubernetes / Istio Ingress Gateway Deep Observability & Troubleshooting (RU)",
+  "uid": "istio-ingress-gateway-deep-troubleshooting-ru",
+  "version": 1
+}
