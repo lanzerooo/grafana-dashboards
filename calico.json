@@ -1,0 +1,627 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "📌 Золотые сигналы CNI (Golden Signals & Health)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество активных установленных BGP сессий (Established) между нодами или Route Reflectors. Падение значения ниже ожидаемого означает разрыв L3-связности между хостами кластера.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(calico_bird_bgp_peering_state{instance=~\"$instance\"} == 1) or sum(calico_bgp_peers{instance=~\"$instance\"}) or sum(felix_cluster_num_hosts{instance=~\"$instance\"})",
+          "legendFormat": "Активные BGP пиры",
+          "refId": "A"
+        }
+      ],
+      "title": "Активные BGP сессии (BGP Peers Up)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Процент занятых IP-адресов в активных пулах IPAM. Если утилизация превышает 85-90%, кластер находится на грани невозможности запускать новые поды.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 75 },
+              { "color": "red", "value": 90 }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "(sum(calico_ipam_allocated_ips) / sum(calico_ipam_max_ips)) * 100 or ((sum(calico_ipam_allocated_ips) / (sum(calico_ipam_allocated_ips) + sum(calico_ipam_free_ips))) * 100)",
+          "legendFormat": "% Утилизации пула",
+          "refId": "A"
+        }
+      ],
+      "title": "Утилизация пулов IPAM (% IP Pool)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "99-й перцентиль времени обновления сетевого data-plane агентом Felix (трансляция правил в iptables/eBPF). Норма: < 500ms. Если задержка > 2s — новые поды или изменения политик применяются со значительным лагом.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "red", "value": 2 }
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(felix_int_dataplane_apply_time_seconds_bucket{instance=~\"$instance\"}[2m]))) or (sum(rate(felix_int_dataplane_apply_time_seconds_sum{instance=~\"$instance\"}[2m])) / sum(rate(felix_int_dataplane_apply_time_seconds_count{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "P99 / Avg Apply Time",
+          "refId": "A"
+        }
+      ],
+      "title": "P99 Применение правил Data-plane",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Интенсивность сброса сетевых пакетов правилами NetworkPolicy, eBPF фильтрами или сбоями conntrack. Рост метрики сигнализирует о блокировке прикладного трафика или атаке.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "unit": "pps"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(felix_iptables_packet_drops{instance=~\"$instance\"}[2m])) or sum(rate(felix_bpf_packet_drops_total{instance=~\"$instance\"}[2m])) or (0 * sum(rate(felix_int_dataplane_apply_time_seconds_count{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "Пакетных дропов / сек",
+          "refId": "A"
+        }
+      ],
+      "title": "Дропы пакетов Data-plane (Drops Rate)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "🛡️ Data-plane: iptables / eBPF, Задержки и Сетевые Политики",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Квантили P50, P90, P99 времени выполнения одного прогона синхронизации data-plane агентом Felix. Отражает накладные расходы ядра на модификацию цепочек и таблиц.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "id": 5,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(felix_int_dataplane_apply_time_seconds_bucket{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "P99 Apply Time",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.90, sum by (le) (rate(felix_int_dataplane_apply_time_seconds_bucket{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "P90 Apply Time",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(felix_int_dataplane_apply_time_seconds_bucket{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "P50 Apply Time",
+          "refId": "C"
+        },
+        {
+          "expr": "sum(rate(felix_int_dataplane_apply_time_seconds_sum{instance=~\"$instance\"}[2m])) / sum(rate(felix_int_dataplane_apply_time_seconds_count{instance=~\"$instance\"}[2m]))",
+          "legendFormat": "Avg Apply Time",
+          "refId": "D"
+        }
+      ],
+      "title": "Квантили применения правил Data-plane (Apply Duration)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Задержка выполнения утилит iptables-restore и iptables-save (в режиме iptables data-plane). Если задержка > 1s, узел испытывает сильную конкуренцию за блокировку xtables lock.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "id": 6,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(felix_iptables_restore_duration_seconds_bucket{instance=~\"$instance\"}[2m]))) or (sum(rate(felix_iptables_restore_duration_seconds_sum{instance=~\"$instance\"}[2m])) / sum(rate(felix_iptables_restore_duration_seconds_count{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "P99 iptables-restore",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(felix_iptables_save_duration_seconds_bucket{instance=~\"$instance\"}[2m]))) or (sum(rate(felix_iptables_save_duration_seconds_sum{instance=~\"$instance\"}[2m])) / sum(rate(felix_iptables_save_duration_seconds_count{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "P99 iptables-save",
+          "refId": "B"
+        }
+      ],
+      "title": "Задержка iptables-restore / save (Kernel Netfilter Latency)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Интенсивность сброшенных пакетов сетевыми политиками. Позволяет точно дифференцировать входящий (ingress) и исходящий (egress) трафик.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 50, "lineWidth": 1 },
+          "unit": "pps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (direction) (rate(felix_iptables_packet_drops{instance=~\"$instance\"}[2m])) or (0 * sum(rate(felix_int_dataplane_apply_time_seconds_count{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "iptables Drop: {{direction}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (reason) (rate(felix_bpf_packet_drops_total{instance=~\"$instance\"}[2m])) or (0 * sum(rate(felix_int_dataplane_apply_time_seconds_count{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "eBPF Drop: {{reason}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Дропы трафика NetworkPolicy / eBPF (Packet Drops)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество локальных активных endpoints (сетевых интерфейсов подов) и политик безопасности (NetworkPolicies), запрограммированных агентом Felix на узле.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "id": 8,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (instance) (felix_active_local_endpoints{instance=~\"$instance\"})",
+          "legendFormat": "Local Endpoints: {{instance}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (instance) (felix_active_local_policies{instance=~\"$instance\"})",
+          "legendFormat": "Active Policies: {{instance}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Локальные Endpoints и Политики (Workloads & Policies)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "id": 102,
+      "title": "🌐 BGP Маршрутизация и Сессии пиринга (BGP Peering & BIRD)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Статус BGP сессий по каждому пиру (1 = Established / Up, 0 = Idle / Connect / Down). Любое значение 0 свидетельствует о разрыве маршрутной связности с соседом.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 23 },
+      "id": 9,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "calico_bird_bgp_peering_state{instance=~\"$instance\"}",
+          "legendFormat": "Пир: {{peer}} ({{instance}})",
+          "refId": "A"
+        },
+        {
+          "expr": "calico_node_bgp_peers_up{instance=~\"$instance\"}",
+          "legendFormat": "BGP Up: {{peer}} ({{instance}})",
+          "refId": "B"
+        }
+      ],
+      "title": "Статус BGP сессий (BGP Peering State: 1 = UP, 0 = DOWN)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество импортированных и экспортированных BGP маршрутов демоном BIRD. Резкое падение импортированных маршрутов указывает на потерю маршрутов к подсетям других узлов.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 23 },
+      "id": 10,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (instance) (calico_bird_bgp_imported_routes{instance=~\"$instance\"})",
+          "legendFormat": "Импортировано: {{instance}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (instance) (calico_bird_bgp_exported_routes{instance=~\"$instance\"})",
+          "legendFormat": "Экспортировано: {{instance}}",
+          "refId": "B"
+        }
+      ],
+      "title": "BGP Маршруты: Импортированные vs Экспортированные",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Суммарное количество сбоев и переустановок (flaps) BGP сессий. В стабильной сети график должен быть строго равен нулю. Флаппинг вызван потерей Keepalive пакетов или MTU mismatch.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 31 },
+      "id": 11,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (peer) (changes(calico_bird_bgp_peering_state{instance=~\"$instance\"}[1h])) or (0 * sum(felix_cluster_num_hosts{instance=~\"$instance\"}))",
+          "legendFormat": "Флапов BGP за час: {{peer}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Сбои и переустановки BGP сессий (BGP Session Flaps / 1h)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 39 },
+      "id": 103,
+      "title": "📦 Calico IPAM: Блоки подсетей и Распределение адресов",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Соотношение выделенных IP-адресов подов к максимально доступной емкости пула (Allocated vs Total Capacity). Позволяет вовремя спрогнозировать необходимость расширения CIDR пула.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "id": 12,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (pool) (calico_ipam_allocated_ips)",
+          "legendFormat": "Занято IP: {{pool}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (pool) (calico_ipam_max_ips)",
+          "legendFormat": "Всего емкость IP: {{pool}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Емкость и занятые IP-адреса (IPAM Pool Capacity)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество /26 CIDR блоков, закрепленных за нодами в пуле IPAM. При масштабировании нод количество блоков линейно возрастает.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "id": 13,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (pool) (calico_ipam_blocks_per_pool) or sum(calico_ipam_blocks_total)",
+          "legendFormat": "Блоков в пуле: {{pool}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Выделенные CIDR блоки подсетей (IPAM Blocks)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество адресов, заимствованных узлом из чужих CIDR-блоков (Borrowed IPs). Высокое значение указывает на фрагментацию пула: узлы исчерпали свои блоки и вынуждены брать единичные адреса у соседей.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "drawStyle": "bars", "fillOpacity": 50, "lineWidth": 1 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 50 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 48 },
+      "id": 14,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum(calico_ipam_borrowed_ips) or (0 * sum(calico_ipam_allocated_ips))",
+          "legendFormat": "Заимствованные IP (Borrowed)",
+          "refId": "A"
+        }
+      ],
+      "title": "Заимствование IP между нодами (Borrowed IPs / Фрагментация)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Скорость выделения новых IP-адресов и их освобождения (IP Allocation vs Release Rate). Позволяет отследить всплески создания подов и детектировать утечки IP (когда поды удаляются, а IP не освобождаются).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 48 },
+      "id": 15,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum(rate(calico_ipam_allocations_total[2m]))",
+          "legendFormat": "Выделение IP / сек",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(calico_ipam_releases_total[2m]))",
+          "legendFormat": "Освобождение IP / сек",
+          "refId": "B"
+        }
+      ],
+      "title": "Частота аллокации и освобождения IP (Allocation Rate)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 56 },
+      "id": 104,
+      "title": "⚙️ Системные ресурсы Felix DaemonSet (Saturation & Runtime)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Потребление ядер процессора (CPU Cores) агентами Felix на нодах кластера. Скачки CPU происходят при частых изменениях сервисов и эндпоинтов или при массовом накате манифестов NetworkPolicy.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 57 },
+      "id": 16,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (instance) (rate(process_cpu_seconds_total{job=~\"calico-felix.*\",instance=~\"$instance\"}[2m])) or sum by (instance) (rate(container_cpu_usage_seconds_total{container=\"calico-node\",instance=~\"$instance\"}[2m]))",
+          "legendFormat": "CPU Cores: {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Утилизация CPU (Felix Cores)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Резидентная оперативная память (RSS) процессов Felix. Felix кэширует полное сетевое состояние ноды и кластера. Постоянный рост указывает на утечку памяти при смене эндпоинтов.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 57 },
+      "id": 17,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (instance) (process_resident_memory_bytes{job=~\"calico-felix.*\",instance=~\"$instance\"}) or sum by (instance) (container_memory_working_set_bytes{container=\"calico-node\",instance=~\"$instance\"})",
+          "legendFormat": "RSS: {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Потребление памяти (Resident Memory RSS)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество активных Go-горутин внутри Felix. Экспоненциальный рост указывает на зависание вызовов netlink к сетевому стеку ядра или блокировки на чтении очерей Kube-API.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 57 },
+      "id": 18,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (instance) (go_goroutines{job=~\"calico-felix.*\",instance=~\"$instance\"})",
+          "legendFormat": "Горутины: {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Активные Go-горутины (Goroutines)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["kubernetes", "calico", "cni", "networking", "bgp", "troubleshooting"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "type": "datasource"
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "definition": "label_values(felix_cluster_num_hosts, instance) or label_values(felix_active_local_endpoints, instance)",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "instance",
+        "query": {
+          "query": "label_values(felix_cluster_num_hosts, instance) or label_values(felix_active_local_endpoints, instance)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Kubernetes / Calico CNI Deep Observability & Troubleshooting (RU)",
+  "uid": "calico-cni-deep-troubleshooting-ru",
+  "version": 1
+}
