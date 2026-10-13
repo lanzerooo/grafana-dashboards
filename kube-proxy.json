@@ -1,0 +1,556 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "📌 Золотые сигналы kube-proxy (Golden Signals & SLI)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "99-й перцентиль времени синхронизации правил маршрутизации (iptables/IPVS) в ядре ноды. Норма: < 200-500ms. Если значение превышает 1s, ядро Linux перегружено перезаписью цепочек правил, либо в кластере создано избыточное число сервисов/эндпоинтов.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(kubeproxy_sync_proxy_rules_duration_seconds_bucket{instance=~\"$instance\"}[2m]))) or (sum(rate(kubeproxy_sync_proxy_rules_duration_seconds_sum{instance=~\"$instance\"}[2m])) / sum(rate(kubeproxy_sync_proxy_rules_duration_seconds_count{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "P99 Sync Duration",
+          "refId": "A"
+        }
+      ],
+      "title": "P99 Задержка синхронизации правил (Sync Rules)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Ключевой официальный SLI Kubernetes: сквозное время от момента готовности пода (Pod Ready) до появления записи в правилах ядра на узле. Норма SLI: P99 < 2s. Рост метрики означает, что новые реплики сервиса не получают трафик сразу после запуска.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 2 },
+              { "color": "red", "value": 5 }
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(kubeproxy_network_programming_duration_seconds_bucket{instance=~\"$instance\"}[2m]))) or (sum(rate(kubeproxy_network_programming_duration_seconds_sum{instance=~\"$instance\"}[2m])) / sum(rate(kubeproxy_network_programming_duration_seconds_count{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "P99 Programming Duration",
+          "refId": "A"
+        }
+      ],
+      "title": "Network Programming Latency (SLI)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Текущий процент заполнения таблицы сопоставления соединений ядра Linux (conntrack). Норма: < 60-70%. Достижение 100% — катастрофический сбой: ядро молча сбрасывает все новые входящие и исходящие TCP/UDP пакеты.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "red", "value": 85 }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "max(node_nf_conntrack_entries{instance=~\"$instance\"} / node_nf_conntrack_entries_limit{instance=~\"$instance\"} * 100) or max(kubeproxy_sync_proxy_rules_iptables_total{instance=~\"$instance\"} * 0)",
+          "legendFormat": "Макс % Conntrack",
+          "refId": "A"
+        }
+      ],
+      "title": "Пиковая утилизация Conntrack Table",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество накопившихся изменений эндпоинтов и сервисов в очереди ожидания на применение. Норма: 0. Значения > 10-20 свидетельствуют о том, что kube-proxy не успевает перестраивать правила быстрее, чем меняются поды.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 50 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(kubeproxy_sync_proxy_rules_endpoint_changes_pending{instance=~\"$instance\"}) + sum(kubeproxy_sync_proxy_rules_service_changes_pending{instance=~\"$instance\"})",
+          "legendFormat": "Очередь изменений",
+          "refId": "A"
+        }
+      ],
+      "title": "Очередь ожидающих изменений (Pending Changes)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "⚡ Задержка и Частота Синхронизации Правил (Rule Sync & Latency)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Квантили P50, P90, P99 времени выполнения одного прогона синхронизации правил (iptables-restore / ipvs sync). Если P99 регулярно уходит выше 1 секунды — узел тратит слишком много времени на манипуляции со структурами netfilter.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "id": 5,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(kubeproxy_sync_proxy_rules_duration_seconds_bucket{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "P99 Sync Duration",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.90, sum by (le) (rate(kubeproxy_sync_proxy_rules_duration_seconds_bucket{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "P90 Sync Duration",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(kubeproxy_sync_proxy_rules_duration_seconds_bucket{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "P50 Sync Duration",
+          "refId": "C"
+        },
+        {
+          "expr": "sum(rate(kubeproxy_sync_proxy_rules_duration_seconds_sum{instance=~\"$instance\"}[2m])) / sum(rate(kubeproxy_sync_proxy_rules_duration_seconds_count{instance=~\"$instance\"}[2m]))",
+          "legendFormat": "Avg Sync Duration",
+          "refId": "D"
+        }
+      ],
+      "title": "Квантили времени синхронизации правил (Sync Rules Latency)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Частота применения правил в ядре в секунду. По умолчанию kube-proxy объединяет изменения (min-sync-period), но при постоянных переключениях подов частота может возрастать, перегружая CPU.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "id": 6,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (instance) (rate(kubeproxy_sync_proxy_rules_duration_seconds_count{instance=~\"$instance\"}[2m]))",
+          "legendFormat": "Синхронизаций / сек: {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Частота синхронизации правил (Sync Rules Execution Rate)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Разбивка накапливающихся изменений: отдельно по Endpoint изменениям (реплики, скейлинг подов) и Service изменениям (создание, удаление ClusterIP/NodePort).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 40, "lineWidth": 1 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (instance) (kubeproxy_sync_proxy_rules_endpoint_changes_pending{instance=~\"$instance\"})",
+          "legendFormat": "Pending Endpoints: {{instance}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (instance) (kubeproxy_sync_proxy_rules_service_changes_pending{instance=~\"$instance\"})",
+          "legendFormat": "Pending Services: {{instance}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Очередь непримененных изменений (Pending Backlog)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Сквозная задержка программирования сети (P50, P90, P99). Отражает полную задержку от момента изменения эндпоинта контроллером до готовности правил на данном узле.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "id": 8,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(kubeproxy_network_programming_duration_seconds_bucket{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "P99 Programming Duration",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.90, sum by (le) (rate(kubeproxy_network_programming_duration_seconds_bucket{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "P90 Programming Duration",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(kubeproxy_network_programming_duration_seconds_bucket{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "P50 Programming Duration",
+          "refId": "C"
+        }
+      ],
+      "title": "Сквозная задержка программирования сети (Programming Latency)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "id": 102,
+      "title": "🔌 Conntrack Ядра Linux и Таблица Соединений (Kernel Conntrack)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество активных записей в таблице nf_conntrack в сравнении с жестким системным лимитом ядра. Лимит конфигурируется параметром --conntrack-max-per-core в kube-proxy или через sysctl net.netfilter.nf_conntrack_max.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 23 },
+      "id": 9,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "node_nf_conntrack_entries{instance=~\"$instance\"}",
+          "legendFormat": "Активных записей: {{instance}}",
+          "refId": "A"
+        },
+        {
+          "expr": "node_nf_conntrack_entries_limit{instance=~\"$instance\"}",
+          "legendFormat": "Лимит conntrack: {{instance}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Записи Conntrack vs Системный Лимит (Entries vs Limit)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Процент утилизации таблицы conntrack по каждому узлу кластера. Позволяет мгновенно выявить конкретный узел, находящийся на грани сетевого отказа (переполнения таблицы сокетов).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "red", "value": 85 }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 23 },
+      "id": 10,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "(node_nf_conntrack_entries{instance=~\"$instance\"} / node_nf_conntrack_entries_limit{instance=~\"$instance\"}) * 100",
+          "legendFormat": "% Заполнения: {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Утилизация таблицы conntrack по нодам (% Saturation)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Интенсивность регистрации новых сопоставлений соединений и удаления старых в секунду (Conntrack Churn Rate). Высокая скорость сменяемости наблюдается при короткоживущих HTTP/1.0 соединениях или интенсивном DNS трафике без keep-alive.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 31 },
+      "id": 11,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "rate(node_nf_conntrack_entries{instance=~\"$instance\"}[2m])",
+          "legendFormat": "Дельта соединений: {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Динамика изменения сессий Conntrack (Netfilter Flow Rate)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 39 },
+      "id": 103,
+      "title": "🔄 Взаимодействие с kube-apiserver и Очереди (Client-Go & API)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Интенсивность обращений kube-proxy к kube-apiserver для получения изменений Endpoints/Services по статус-кодам. Наличие 429 (Too Many Requests) означает троттлинг запросов механизмом APF.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "stacking": { "group": "A", "mode": "normal" } },
+          "unit": "reqps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "id": 12,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (code) (rate(rest_client_requests_total{instance=~\"$instance\"}[2m]))",
+          "legendFormat": "HTTP {{code}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Запросы к kube-apiserver по кодам (Client REST Requests)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Задержка ожидания в локальном Rate Limiter встроенного клиента client-go. Если этот график растет — kube-proxy сам себя ограничивает по QPS/Burst при попытке подписаться на обновления кластера.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "id": 13,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum(rate(rest_client_rate_limiter_duration_seconds_sum{instance=~\"$instance\"}[2m])) / sum(rate(rest_client_rate_limiter_duration_seconds_count{instance=~\"$instance\"}[2m])) or (0 * sum(rate(kubeproxy_sync_proxy_rules_duration_seconds_count{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "Средняя задержка Rate Limiter",
+          "refId": "A"
+        }
+      ],
+      "title": "Троттлинг запросов к API (Client-Go Rate Limiter Latency)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 48 },
+      "id": 104,
+      "title": "⚙️ Системные ресурсы kube-proxy (Saturation & Runtime)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Потребление ядер процессора (CPU Cores) процессом kube-proxy на узлах. В режиме iptables при регулярном применении правил процессор может упираться в лимит, вызывая зависания сетевого стека.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 49 },
+      "id": 14,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (instance) (rate(process_cpu_seconds_total{instance=~\"$instance\"}[2m]))",
+          "legendFormat": "CPU: {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Утилизация CPU (kube-proxy Cores)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Физическая оперативная память (RSS). kube-proxy кэширует список всех сервисов и эндпоинтов кластера. В больших кластерах память может достигать 500MB-1GB на ноду.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 49 },
+      "id": 15,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (instance) (process_resident_memory_bytes{instance=~\"$instance\"})",
+          "legendFormat": "RSS: {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Потребление памяти (Resident Memory RSS)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество активных Go-горутин. Резкий экспоненциальный взлет горутин — ключевой признак зависания системных вызовов к бинарникам iptables-restore / ipvsadm или блокировки сетевых сокетов API.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 49 },
+      "id": 16,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (instance) (go_goroutines{instance=~\"$instance\"})",
+          "legendFormat": "Горутины: {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Активные Go-горутины (Goroutines)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["kubernetes", "kube-proxy", "iptables", "ipvs", "networking", "troubleshooting"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "type": "datasource"
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "definition": "label_values(kubeproxy_sync_proxy_rules_duration_seconds_count, instance)",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "instance",
+        "query": {
+          "query": "label_values(kubeproxy_sync_proxy_rules_duration_seconds_count, instance)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Kubernetes / kube-proxy Deep Observability & Troubleshooting (RU)",
+  "uid": "kube-proxy-deep-troubleshooting-ru",
+  "version": 1
+}
