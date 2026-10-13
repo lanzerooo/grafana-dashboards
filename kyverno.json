@@ -1,0 +1,568 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "📌 Золотые сигналы Admission Webhook (Golden Signals)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Общая интенсивность входящих запросов от kube-apiserver к валидирующим и мутирующим вебхукам Kyverno (Admission QPS). Резкий рост совпадает с массовым накатом манифестов, волнами масштабирования HPA или CI/CD деплоями.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "reqps"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(kyverno_admission_requests_total{pod=~\"$pod\"}[2m])) or sum(rate(kyverno_admission_review_duration_seconds_count{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Входящий Admission QPS",
+          "refId": "A"
+        }
+      ],
+      "title": "Общий Admission Webhook QPS",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество запросов, заблокированных политиками Kyverno (Enforce mode -> Fail). Если значение неожиданно подскочило — деплой не проходит проверку безопасности, либо в продакшен выкатили некорректную политику.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 0.01 }
+            ]
+          },
+          "unit": "errps"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(kyverno_policy_results_total{pod=~\"$pod\",rule_result=\"fail\"}[2m])) or (0 * sum(rate(kyverno_admission_requests_total{pod=~\"$pod\"}[2m])))",
+          "legendFormat": "Заблокировано политиками",
+          "refId": "A"
+        }
+      ],
+      "title": "Отклоненные запросы (Blocked / Fail)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "99-й перцентиль времени обработки запроса вебхуком Kyverno. Норма: < 100ms. Если значение превышает 500ms — apiserver испытывает задержки. Если превышает 10s — apiserver сбросит запрос по таймауту с ошибкой 'context deadline exceeded'.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.2 },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(kyverno_admission_review_duration_seconds_bucket{pod=~\"$pod\"}[2m]))) or (sum(rate(kyverno_admission_review_duration_seconds_sum{pod=~\"$pod\"}[2m])) / sum(rate(kyverno_admission_review_duration_seconds_count{pod=~\"$pod\"}[2m])))",
+          "legendFormat": "P99 / Avg Latency",
+          "refId": "A"
+        }
+      ],
+      "title": "P99 Время ответа Webhook (Admission Review)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество готовых реплик подов контроллеров Kyverno. Должно быть строго >= 3 в продакшене для обеспечения отказоустойчивости к падению одной из нод control plane / workers.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 2 },
+              { "color": "green", "value": 3 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(kube_deployment_status_replicas_ready{deployment=~\"kyverno.*\"}) or count(count by (pod) (kyverno_admission_requests_total))",
+          "legendFormat": "Готовых контроллеров",
+          "refId": "A"
+        }
+      ],
+      "title": "Готовые реплики контроллеров Kyverno",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "⚖️ Исполнение политик и Результаты (Policy Execution & Decisions)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Распределение решений политик: pass (успешно пройдено), fail (нарушение/блокировка), warn (предупреждение в режиме Audit), skip (ресурс пропущен фильтрами правил), error (ошибка в синтаксисе правила или JMESPath).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "stacking": { "group": "A", "mode": "normal" } },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "id": 5,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (rule_result) (rate(kyverno_policy_results_total{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Результат: {{rule_result}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Результаты применения политик (Decisions by Result)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Топ политик, генерирующих наибольшее количество блокировок (rule_result='fail'). Позволяет мгновенно определить, какая именно политика стала причиной сбоя пайплайнов или недовольства разработчиков.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1 },
+          "unit": "errps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "id": 6,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "topk(7, sum by (policy_name) (rate(kyverno_policy_results_total{pod=~\"$pod\",rule_result=\"fail\"}[2m])))",
+          "legendFormat": "Политика: {{policy_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Топ нарушаемых политик (Top Failed Policies)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Разбивка нагрузки по типам действий политик: validate (валидация), mutate (модификация объектов на лету), generate (генерация сопутствующих манифестов, например NetworkPolicy/ConfigMap), verify-images (верификация подписей Cosign/Notary).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (rule_type) (rate(kyverno_policy_results_total{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Тип правила: {{rule_type}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Исполнение политик по типам правил (Rule Types)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Политики в режиме аудита (Audit / Warn). Они не блокируют манифесты, но генерируют Warning-заголовки для пользователей и складывают отчеты в PolicyReports. Используются при безопасном тестировании новых правил перед переводом в Enforce.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "id": 8,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "topk(7, sum by (policy_name) (rate(kyverno_policy_results_total{pod=~\"$pod\",rule_result=\"warn\"}[2m])))",
+          "legendFormat": "Audit Warn: {{policy_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Топ политик с предупреждениями (Audit / Warn Mode)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "id": 102,
+      "title": "⚡ Задержки движка и Анализ медленных политик (Engine Latency & Profiling)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Квантили P50, P90, P99 времени выполнения Admission Review в Kyverno. Резкий разрыв между P50 и P99 указывает на то, что определенные ресурсоемкие политики или конкретные типы ресурсов тормозят весь конвейер.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 23 },
+      "id": 9,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(kyverno_admission_review_duration_seconds_bucket{pod=~\"$pod\"}[2m])))",
+          "legendFormat": "P99 Latency",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.90, sum by (le) (rate(kyverno_admission_review_duration_seconds_bucket{pod=~\"$pod\"}[2m])))",
+          "legendFormat": "P90 Latency",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(kyverno_admission_review_duration_seconds_bucket{pod=~\"$pod\"}[2m])))",
+          "legendFormat": "P50 Latency",
+          "refId": "C"
+        },
+        {
+          "expr": "sum(rate(kyverno_admission_review_duration_seconds_sum{pod=~\"$pod\"}[2m])) / sum(rate(kyverno_admission_review_duration_seconds_count{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Средняя задержка (Avg Latency)",
+          "refId": "D"
+        }
+      ],
+      "title": "Квантили времени ответа Webhook (Review Latency)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Самые медленные правила по среднему времени вычисления. Главные виновники высоких задержек: сложные циклы в JMESPath фильтрах, обращение к внешним реестрам OCI в `verify-images` без локального кэша, или тяжелые вызовы API через context.apiCall.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 23 },
+      "id": 10,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "topk(7, sum by (policy_name) (rate(kyverno_policy_execution_duration_seconds_sum{pod=~\"$pod\"}[2m])) / sum by (policy_name) (rate(kyverno_policy_execution_duration_seconds_count{pod=~\"$pod\"}[2m])) > 0)",
+          "legendFormat": "Медленная политика: {{policy_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Топ самых медленных политик (Slowest Policies / Avg)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Время выполнения вебхука Kyverno глазами вызывающей стороны (kube-apiserver). Включает накладные расходы сети, TLS-хэндшейка и очереди самого apiserver. Если график apiserver существенно выше внутреннего графика Kyverno — проблема в сетевой подсистеме между control plane и подами.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 31 },
+      "id": 11,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum(rate(apiserver_admission_webhook_admission_duration_seconds_sum{name=~ emerge\".*kyverno.*\"}[2m])) / sum(rate(apiserver_admission_webhook_admission_duration_seconds_count{name=~\".*kyverno.*\"}[2m]))",
+          "legendFormat": "Средняя задержка со стороны apiserver",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(apiserver_admission_webhook_admission_duration_seconds_bucket{name=~\".*kyverno.*\"}[2m])))",
+          "legendFormat": "P99 задержка со стороны apiserver",
+          "refId": "B"
+        }
+      ],
+      "title": "Задержка вебхука Kyverno со стороны kube-apiserver",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Глубина внутренней очереди обработки событий контроллеров Kyverno (workqueue depth). Если очередь линейно растет — контроллеры не успевают обрабатывать входящий поток объектов, накапливая бэклог.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 31 },
+      "id": 12,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (name) (workqueue_depth{name=~\"kyverno.*\"})",
+          "legendFormat": "Очередь: {{name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Глубина очередей контроллеров (Workqueue Depth)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 39 },
+      "id": 103,
+      "title": "🛠️ Мутации, Генерация ресурсов и Автоген-правила (Mutate, Generate & Autogen)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Скорость модификации манифестов правилами мутации (добавление лейблов, env-переменных, securityContext, инжекция сертификатов). Позволяет отследить активность мутирующего вебхука.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 40 },
+      "id": 13,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (policy_name) (rate(kyverno_policy_results_total{pod=~\"$pod\",rule_type=\"mutate\",rule_result=\"pass\"}[2m]))",
+          "legendFormat": "Мутация: {{policy_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Успешные мутации ресурсов (Mutate Rate)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Частота генерации зависимых ресурсов (правила типа generate). Например, автоматическое клонирование Secret, создание NetworkPolicy или RBAC RoleBinding при создании нового Namespace.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 40 },
+      "id": 14,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (policy_name) (rate(kyverno_policy_results_total{pod=~\"$pod\",rule_type=\"generate\"}[2m]))",
+          "legendFormat": "Генерация: {{policy_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Генерация ресурсов (Generate Executions)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Ошибки при выполнении политик (ошибки парсинга JSON, сбои при генерации объектов, недоступность OCI реестра). В стабильном кластере этот график должен быть строго равен нулю.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1 },
+          "unit": "errps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 40 },
+      "id": 15,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (policy_name) (rate(kyverno_policy_results_total{pod=~\"$pod\",rule_result=\"error\"}[2m])) or (0 * sum(rate(kyverno_admission_requests_total{pod=~\"$pod\"}[2m])))",
+          "legendFormat": "Сбой правила: {{policy_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Сбои в логике политик (Policy Errors)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 48 },
+      "id": 104,
+      "title": "⚙️ Системные ресурсы и Троттлинг Client-Go (Saturation & Throttling)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Потребление процессорного времени (Cores) подами Kyverno. Тяжелые парсинги JSON, частые регулярные выражения и фоновые сканирования сотен тысяч ресурсов могут приводить к CPU Throttling.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 49 },
+      "id": 16,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{container=~\"kyverno.*\",pod=~\"$pod\"}[2m])) or sum by (pod) (rate(process_cpu_seconds_total{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "CPU Cores: {{pod}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Утилизация CPU (Kyverno Cores)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Физическая оперативная память процесса (RSS). Kyverno кэширует схемы и ресурсы кластера. Если память линейно растет до Memory Limit, под будет убит ядром по OOMKilled.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 49 },
+      "id": 17,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (pod) (container_memory_working_set_bytes{container=~\"kyverno.*\",pod=~\"$pod\"}) or sum by (pod) (process_resident_memory_bytes{pod=~\"$pod\"})",
+          "legendFormat": "RSS: {{pod}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Потребление памяти (Working Set RSS)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Задержка клиентских запросов Kyverno к kube-apiserver из-за встроенного client-go Rate Limiting (по умолчанию QPS=20, Burst=50). Если этот график растет — Kyverno искусственно троттлит сам себя при запросах к API Kubernetes, что резко замедляет работу фоновых контроллеров.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 49 },
+      "id": 18,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (pod) (rate(rest_client_request_latency_seconds_sum{pod=~\"$pod\"}[2m])) / sum by (pod) (rate(rest_client_request_latency_seconds_count{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Client-go Avg Latency: {{pod}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (pod) (rate(rest_client_rate_limiter_duration_seconds_sum{pod=~\"$pod\"}[2m])) / sum by (pod) (rate(rest_client_rate_limiter_duration_seconds_count{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Rate Limiter Wait: {{pod}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Троттлинг Client-Go к Kube-API (Rate Limiter)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["kubernetes", "kyverno", "security", "admission-controller", "troubleshooting"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "type": "datasource"
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "definition": "label_values(kyverno_admission_requests_total, pod)",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "pod",
+        "query": {
+          "query": "label_values(kyverno_admission_requests_total, pod)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Kubernetes / Kyverno Policy Engine Observability & Troubleshooting (RU)",
+  "uid": "kyverno-policy-engine-troubleshooting-ru",
+  "version": 1
+}
