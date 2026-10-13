@@ -1,0 +1,1047 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "📌 Золотые сигналы состояния нод (Node Health & K8s Conditions)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Статус готовности ноды в Kubernetes: 1 = NodeReady, 0 = NodeNotReady. Любое значение 0 означает выпадение ноды из планирования и эвакуацию подов.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "0": { "color": "red", "text": "NOT READY" }, "1": { "color": "green", "text": "READY" } }, "type": "value" }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "min by (node) (kube_node_status_condition{node=~\"$node\",condition=\"Ready\",status=\"true\"}) or min by (instance) (up{job=~\"node-exporter.*\",instance=~\"$instance\"})",
+          "legendFormat": "Node Status",
+          "refId": "A"
+        }
+      ],
+      "title": "Статус ноды (Node Ready)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Отношение Load Average (1m) к количеству физических CPU ядер хоста. Значение > 1.0 означает, что процессорная очередь переполнена и процессы выстраиваются в очередь ожидания.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 1.5 }
+            ]
+          },
+          "unit": "percentunit"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "max(node_load1{instance=~\"$instance\"}) / count(count by (cpu) (node_cpu_seconds_total{instance=~\"$instance\"}))",
+          "legendFormat": "Load / Cores",
+          "refId": "A"
+        }
+      ],
+      "title": "Нагрузка на ядро (Load / Cores Ratio)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Процент фактически используемой оперативной памяти (100% - MemAvailable %). Достижение 90% приводит к срабатыванию Kubelet MemoryPressure и вытеснению подов.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 80 },
+              { "color": "red", "value": 90 }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "(1 - (node_memory_MemAvailable_bytes{instance=~\"$instance\"} / node_memory_MemTotal_bytes{instance=~\"$instance\"})) * 100",
+          "legendFormat": "% Памяти",
+          "refId": "A"
+        }
+      ],
+      "title": "Утилизация RAM (% Memory Used)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Максимальный процент заполнения любого смонтированного корневого или рабочего раздела диска. Порог > 85% переводит узел в DiskPressure.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 75 },
+              { "color": "red", "value": 85 }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "max((1 - (node_filesystem_avail_bytes{instance=~\"$instance\",fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{instance=~\"$instance\",fstype!~\"tmpfs|overlay\"})) * 100)",
+          "legendFormat": "% Диска",
+          "refId": "A"
+        }
+      ],
+      "title": "Пиковое заполнение FS (% Disk Used)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество процессов в состоянии Uninterruptible Sleep (D-state). В норме должно быть строго 0. Любое значение > 0 означает зависание процессов на дисковом вводе-выводе или сетевой ФС (NFS/Ceph/CSI).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(node_processes_state{state=\"D\",instance=~\"$instance\"}) or (0 * sum(node_load1{instance=~\"$instance\"}))",
+          "legendFormat": "D-state процессов",
+          "refId": "A"
+        }
+      ],
+      "title": "Зависшие процессы (D-State Processes)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Суммарное количество аварийных завершений процессов по OOM Killer ядром Linux за последний час.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(changes(node_vmstat_oom_kill{instance=~\"$instance\"}[1h])) or (0 * sum(node_load1{instance=~\"$instance\"}))",
+          "legendFormat": "OOM Kills / 1h",
+          "refId": "A"
+        }
+      ],
+      "title": "OOM Kills хоста (Kernel OOM / 1h)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "⚡ Процессор (CPU): Режимы, Steal, Прерывания и Очереди",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Полная разбивка утилизации CPU по всем режимам ядра: user, system, iowait (ожидание диска), steal (задержка гипервизора), softirq (сетевые прерывания), idle.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "stacking": { "group": "A", "mode": "normal" } },
+          "max": 100,
+          "min": 0,
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (mode) (rate(node_cpu_seconds_total{instance=~\"$instance\"}[2m])) / ignoring(mode) group_left sum(rate(node_cpu_seconds_total{instance=~\"$instance\"}[2m])) * 100",
+          "legendFormat": "{{mode}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Утилизация CPU по режимам (CPU Breakdown %)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Критическая метрика для облачных и виртуальных машин: процент времени, когда виртуальный процессор ноды готов к выполнению, но физический гипервизор не дает ему квант времени. Значения > 5% означают шумных соседей на хосте.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 3 },
+              { "color": "red", "value": 5 }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "id": 8,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (instance) (rate(node_cpu_seconds_total{mode=\"steal\",instance=~\"$instance\"}[2m])) / sum by (instance) (rate(node_cpu_seconds_total{instance=~\"$instance\"}[2m])) * 100",
+          "legendFormat": "CPU Steal: {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "CPU Steal Time (Гипервизорная задержка)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Динамика системной очереди Load Average (1m, 5m, 15m) в сопоставлении с общим количеством доступных процессорных ядер хоста.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "id": 9,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "node_load1{instance=~\"$instance\"}",
+          "legendFormat": "Load 1m",
+          "refId": "A"
+        },
+        {
+          "expr": "node_load5{instance=~\"$instance\"}",
+          "legendFormat": "Load 5m",
+          "refId": "B"
+        },
+        {
+          "expr": "node_load15{instance=~\"$instance\"}",
+          "legendFormat": "Load 15m",
+          "refId": "C"
+        },
+        {
+          "expr": "count(count by (cpu) (node_cpu_seconds_total{instance=~\"$instance\"}))",
+          "legendFormat": "Всего CPU ядер (Порог)",
+          "refId": "D"
+        }
+      ],
+      "title": "Load Average vs Количество ядер хоста",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Частота аппаратных прерываний (Interrupts) и переключений контекста (Context Switches) в секунду. Аномальные пики (> 100k-200k/s) вызывают лавину накладных расходов планировщика ядра Linux.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "id": 10,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "rate(node_context_switches_total{instance=~\"$instance\"}[2m])",
+          "legendFormat": "Контекстных переключений / сек",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(node_intr_total{instance=~\"$instance\"}[2m])",
+          "legendFormat": "Прерываний / сек",
+          "refId": "B"
+        }
+      ],
+      "title": "Переключения контекста и Прерывания (Context Switches & Interrupts)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "id": 102,
+      "title": "🧠 Память: Структура, Буферы ядра, Dirty Pages и Slab",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Детальное распределение оперативной памяти: Used (фактически занято процессами), Cached (дисковый кэш страниц Page Cache), Buffers (буферы блоков), SReclaimable (кэш Slab, который можно освободить), Free.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "stacking": { "group": "A", "mode": "normal" } },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 23 },
+      "id": 11,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "node_memory_MemTotal_bytes{instance=~\"$instance\"} - node_memory_MemAvailable_bytes{instance=~\"$instance\"}",
+          "legendFormat": "Занято (Used)",
+          "refId": "A"
+        },
+        {
+          "expr": "node_memory_Cached_bytes{instance=~\"$instance\"} + node_memory_Buffers_bytes{instance=~\"$instance\"}",
+          "legendFormat": "Page Cache & Buffers",
+          "refId": "B"
+        },
+        {
+          "expr": "node_memory_SReclaimable_bytes{instance=~\"$instance\"}",
+          "legendFormat": "Slab Reclaimable",
+          "refId": "C"
+        },
+        {
+          "expr": "node_memory_MemFree_bytes{instance=~\"$instance\"}",
+          "legendFormat": "Свободно (Free)",
+          "refId": "D"
+        }
+      ],
+      "title": "Структура оперативной памяти (Memory Breakdown)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Объем «грязной» памяти (Dirty Pages) и страниц в процессе сброса на диск (Writeback). Если этот график постоянно растет до гигабайтов — диск не успевает сбрасывать данные, и ядро начнет блокировать процессы на системном вызове write().",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 23 },
+      "id": 12,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "node_memory_Dirty_bytes{instance=~\"$instance\"}",
+          "legendFormat": "Dirty Memory (Ожидает сброса)",
+          "refId": "A"
+        },
+        {
+          "expr": "node_memory_Writeback_bytes{instance=~\"$instance\"}",
+          "legendFormat": "Writeback (Сбрасывается сейчас)",
+          "refId": "B"
+        }
+      ],
+      "title": "Грязная память и Writeback (Dirty Memory I/O Backlog)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Интенсивность тяжелых сбоев страниц (Major Page Faults). В отличие от Minor Faults, Major требует прямого обращения к диску/свопу для подгрузки страницы памяти, что мгновенно роняет производительность процессов.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 31 },
+      "id": 13,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "rate(node_vmstat_pgmajfault{instance=~\"$instance\"}[2m])",
+          "legendFormat": "Major Page Faults / сек",
+          "refId": "A"
+        }
+      ],
+      "title": "Тяжелые сбои страниц памяти (Major Page Faults)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Память, занятая структурами ядра Linux (Slab Allocator): SReclaimable (кэши dentry/inodes, которые ядро может сбросить) vs SUnreclaim (несбрасываемая память ядра). Рост SUnreclaim — признак утечки памяти в драйверах или модулях ядра.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 31 },
+      "id": 14,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "node_memory_SReclaimable_bytes{instance=~\"$instance\"}",
+          "legendFormat": "Slab Reclaimable",
+          "refId": "A"
+        },
+        {
+          "expr": "node_memory_SUnreclaim_bytes{instance=~\"$instance\"}",
+          "legendFormat": "Slab Unreclaimable (Ядро)",
+          "refId": "B"
+        }
+      ],
+      "title": "Аллокатор ядра Slab (Reclaimable vs Unreclaimable)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 39 },
+      "id": 103,
+      "title": "💽 Дисковая подсистема: Пропускная способность, IOPS, Задержка и Inodes",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Скорость чтения и записи данных на блочные устройства в байтах в секунду (Device Read/Write Throughput).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "Bps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "id": 15,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (device) (rate(node_disk_read_bytes_total{instance=~\"$instance\",device!~\"loop.*|dm-.*\"}[2m]))",
+          "legendFormat": "Чтение: {{device}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (device) (rate(node_disk_written_bytes_total{instance=~\"$instance\",device!~\"loop.*|dm-.*\"}[2m]))",
+          "legendFormat": "Запись: {{device}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Пропускная способность дисков (Disk Read / Write Bps)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Интенсивность дисковых операций в секунду (IOPS) раздельно для операций чтения и записи.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "iops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "id": 16,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (device) (rate(node_disk_reads_completed_total{instance=~\"$instance\",device!~\"loop.*|dm-.*\"}[2m]))",
+          "legendFormat": "Read IOPS: {{device}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (device) (rate(node_disk_writes_completed_total{instance=~\"$instance\",device!~\"loop.*|dm-.*\"}[2m]))",
+          "legendFormat": "Write IOPS: {{device}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Дисковые операции в секунду (Disk IOPS)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Средняя задержка выполнения одной операции ввода-вывода (Await Latency). Для NVMe/SSD норма: < 1-5ms. Значения > 20-50ms означают полную перегрузку дискового контроллера.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 48 },
+      "id": 17,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (device) (rate(node_disk_read_time_seconds_total{instance=~\"$instance\",device!~\"loop.*|dm-.*\"}[2m])) / sum by (device) (rate(node_disk_reads_completed_total{instance=~\"$instance\",device!~\"loop.*|dm-.*\"}[2m])) > 0",
+          "legendFormat": "Read Await: {{device}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (device) (rate(node_disk_write_time_seconds_total{instance=~\"$instance\",device!~\"loop.*|dm-.*\"}[2m])) / sum by (device) (rate(node_disk_writes_completed_total{instance=~\"$instance\",device!~\"loop.*|dm-.*\"}[2m])) > 0",
+          "legendFormat": "Write Await: {{device}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Задержка дисковых операций (Disk Await Latency)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество операций I/O, находящихся в обработке прямо сейчас (In-flight I/O queue). Рост очереди напрямую коррелирует с ростом iowait и деградацией производительности хоста.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 48 },
+      "id": 18,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (device) (node_disk_io_now{instance=~\"$instance\",device!~\"loop.*|dm-.*\"})",
+          "legendFormat": "In-flight I/O: {{device}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Очередь дисковых запросов (In-Flight I/O Queue)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Процент использования файловых дескрипторов Inodes. Опасная ошибка: на диске может оставаться 500GB свободного места, но при исчерпании Inodes (100%) создание новых файлов полностью блокируется с ошибкой 'No space left on device'.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 75 },
+              { "color": "red", "value": 90 }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 56 },
+      "id": 19,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "(1 - (node_filesystem_files_free{instance=~\"$instance\",fstype!~\"tmpfs|overlay\"} / node_filesystem_files{instance=~\"$instance\",fstype!~\"tmpfs|overlay\"})) * 100",
+          "legendFormat": "Inodes Used (%): {{mountpoint}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Утилизация Inodes по файловым системам (% Inodes Saturation)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 64 },
+      "id": 104,
+      "title": "🌐 Сеть, Пакетные Дропы, Сокеты и Conntrack",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Входящий и исходящий сетевой трафик физических и оверлейных интерфейсов в битах в секунду.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "bps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 65 },
+      "id": 20,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (device) (rate(node_network_receive_bytes_total{instance=~\"$instance\",device!~\"veth.*|docker.*|lo\"}[2m])) * 8",
+          "legendFormat": "Rx: {{device}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (device) (rate(node_network_transmit_bytes_total{instance=~\"$instance\",device!~\"veth.*|docker.*|lo\"}[2m])) * 8",
+          "legendFormat": "Tx: {{device}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Сетевой трафик интерфейсов (Bandwidth Rx / Tx)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Дропы пакетов и сетевые ошибки интерфейсов. В норме строго 0. Рост дропов сигнализирует о переполнении очередей сетевой карты (ring buffer) или проблемах с кабелем/свитчем.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1 },
+          "unit": "pps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 65 },
+      "id": 21,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (device) (rate(node_network_receive_drop_total{instance=~\"$instance\",device!~\"veth.*\"}[2m])) or (0 * sum(node_load1{instance=~\"$instance\"}))",
+          "legendFormat": "Rx Drop: {{device}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (device) (rate(node_network_transmit_drop_total{instance=~\"$instance\",device!~\"veth.*\"}[2m])) or (0 * sum(node_load1{instance=~\"$instance\"}))",
+          "legendFormat": "Tx Drop: {{device}}",
+          "refId": "B"
+        },
+        {
+          "expr": "sum by (device) (rate(node_network_receive_errs_total{instance=~\"$instance\"}[2m])) or (0 * sum(node_load1{instance=~\"$instance\"}))",
+          "legendFormat": "Rx Errors: {{device}}",
+          "refId": "C"
+        }
+      ],
+      "title": "Сетевые ошибки и дропы пакетов (Interface Drops & Errors)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Сбросы сетевых пакетов на уровне ядра Linux из-за переполнения очередей softirq (Softnet backlog / netdev_max_backlog). Если times_squeezed растет — ядро исчерпало лимит времени net.core.netdev_budget на обработку прерываний.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 73 },
+      "id": 22,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum(rate(node_softnet_dropped_total{instance=~\"$instance\"}[2m])) or (0 * sum(node_load1{instance=~\"$instance\"}))",
+          "legendFormat": "Softnet Dropped (Backlog Full)",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(node_softnet_times_squeezed_total{instance=~\"$instance\"}[2m])) or (0 * sum(node_load1{instance=~\"$instance\"}))",
+          "legendFormat": "Softnet Squeezed (Budget Exhausted)",
+          "refId": "B"
+        }
+      ],
+      "title": "Дропы прерываний ядра Softnet (Kernel SoftIRQ Saturation)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Распределение TCP сокетов ядра по состояниям: inuse (активные), timewait (ожидающие закрытия), orphan (потерянные клиентские соединения без дескриптора процесса).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 73 },
+      "id": 23,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "node_sockstat_TCP_inuse{instance=~\"$instance\"}",
+          "legendFormat": "TCP In-Use",
+          "refId": "A"
+        },
+        {
+          "expr": "node_sockstat_TCP_tw{instance=~\"$instance\"}",
+          "legendFormat": "TCP TIME_WAIT",
+          "refId": "B"
+        },
+        {
+          "expr": "node_sockstat_TCP_orphan{instance=~\"$instance\"}",
+          "legendFormat": "TCP Orphan",
+          "refId": "C"
+        },
+        {
+          "expr": "node_sockstat_TCP_alloc{instance=~\"$instance\"}",
+          "legendFormat": "Всего TCP выделено",
+          "refId": "D"
+        }
+      ],
+      "title": "TCP Сокеты по состояниям (Socket Allocations)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 81 },
+      "id": 105,
+      "title": "⏱️ PSI: Pressure Stall Information (Главный сигнал задыхающегося сервера)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Процент времени, когда задачи на хосте простаивают из-за отсутствия свободных CPU ядер (CPU Pressure Some). Значения > 10-15% означают жестокий троттлинг всех контейнеров.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2 },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "red", "value": 15 }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 82 },
+      "id": 24,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "rate(node_pressure_cpu_waiting_seconds_total{instance=~\"$instance\"}[2m]) * 100",
+          "legendFormat": "CPU Pressure (Some): {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Давление на CPU (% CPU Stall Pressure)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Процент времени, когда задачи простаивают в ожидании выделения страниц оперативной памяти: Some (хотя бы одна задача ждет) и Full (все задачи заблокированы на сбросе памяти ядра). Появление Full Pressure — предвестник скорого OOMKilled.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2 },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "red", "value": 15 }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 82 },
+      "id": 25,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "rate(node_pressure_memory_waiting_seconds_total{instance=~\"$instance\"}[2m]) * 100",
+          "legendFormat": "Memory Stall (Some)",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(node_pressure_memory_stalled_seconds_total{instance=~\"$instance\"}[2m]) * 100",
+          "legendFormat": "Memory Stall (FULL)",
+          "refId": "B"
+        }
+      ],
+      "title": "Давление на память (% Memory Stall Pressure)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Процент времени, когда задачи полностью заблокированы дисковым вводом-выводом (I/O Stall Pressure). Прямой объективный показатель того, что диск является узким горлышком производительности.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2 },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "red", "value": 15 }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 82 },
+      "id": 26,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "rate(node_pressure_io_waiting_seconds_total{instance=~\"$instance\"}[2m]) * 100",
+          "legendFormat": "I/O Stall (Some)",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(node_pressure_io_stalled_seconds_total{instance=~\"$instance\"}[2m]) * 100",
+          "legendFormat": "I/O Stall (FULL)",
+          "refId": "B"
+        }
+      ],
+      "title": "Давление на диск (% I/O Stall Pressure)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 90 },
+      "id": 106,
+      "title": "⚙️ Системные ресурсы ядра, Дескрипторы и Потоки (Kernel & OS Limits)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Текущее количество потоков (threads/tasks) на хосте в сопоставлении с жестким системным лимитом ядра (threads-max или pid_max). Превышение лимита блокирует запуск любых новых процессов с ошибкой 'fork: retry: Resource temporarily unavailable'.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 91 },
+      "id": 27,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "node_processes_threads{instance=~\"$instance\"}",
+          "legendFormat": "Активных потоков",
+          "refId": "A"
+        },
+        {
+          "expr": "node_processes_max_threads{instance=~\"$instance\"}",
+          "legendFormat": "Системный лимит (threads-max)",
+          "refId": "B"
+        }
+      ],
+      "title": "Активные потоки vs Лимит ядра (Threads vs Max)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Процент использования системной таблицы файловых дескрипторов ядра (fs.file-max).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "red", "value": 85 }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 91 },
+      "id": 28,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "(node_filefd_allocated{instance=~\"$instance\"} / node_filefd_maximum{instance=~\"$instance\"}) * 100",
+          "legendFormat": "% File Descriptors",
+          "refId": "A"
+        }
+      ],
+      "title": "Утилизация файловых дескрипторов (% File Descriptors)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество открытых сетевых сопоставлений в таблице conntrack в сравнении с лимитом net.netfilter.nf_conntrack_max.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 65 },
+              { "color": "red", "value": 80 }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 91 },
+      "id": 29,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "(node_nf_conntrack_entries{instance=~\"$instance\"} / node_nf_conntrack_entries_limit{instance=~\"$instance\"}) * 100",
+          "legendFormat": "% Conntrack",
+          "refId": "A"
+        }
+      ],
+      "title": "Заполнение таблицы Conntrack (% Saturation)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["kubernetes", "nodes", "node-exporter", "linux", "psi", "sre", "troubleshooting"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "type": "datasource"
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "definition": "label_values(node_uname_info, instance) or label_values(node_boot_time_seconds, instance)",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "instance",
+        "query": {
+          "query": "label_values(node_uname_info, instance) or label_values(node_boot_time_seconds, instance)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "definition": "label_values(kube_node_info, node)",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "node",
+        "query": {
+          "query": "label_values(kube_node_info, node)",
+          "refId": "StandardVariableQuery2"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Kubernetes / Linux Nodes Deep Observability & Troubleshooting (RU)",
+  "uid": "k8s-linux-nodes-deep-troubleshooting-ru",
+  "version": 1
+}
