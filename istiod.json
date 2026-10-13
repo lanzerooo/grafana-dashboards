@@ -1,0 +1,618 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "📌 Золотые сигналы istiod Control Plane (Golden Signals)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Общее количество Envoy сайдкаров и Ingress/Egress шлюзов, поддерживающих активное gRPC-соединение с данным инстансом istiod. Резкое падение означает сетевой сбой между воркерами и control-plane.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "mappings": [],
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "expr": "sum(pilot_xds{pod=~\"$pod\"})",
+          "legendFormat": "Подключенные Envoy",
+          "refId": "A"
+        }
+      ],
+      "title": "Активные подключения Envoy (Connected Proxies)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Интенсивность рассылки xDS конфигураций (LDS, RDS, CDS, EDS) в сторону Envoy сайдкаров в секунду. Резкие скачки коррелируют с массовым накатом манифестов или постоянным flapping подов.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "mappings": [],
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "expr": "sum(rate(pilot_xds_pushes{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "xDS Push Rate",
+          "refId": "A"
+        }
+      ],
+      "title": "Частота отправки xDS (Push Rate)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество отклоненных конфигураций (NACK) со стороны Envoy. Норма: 0. Любое значение выше нуля указывает на синтаксически невалидный конфиг (Envoy не смог применить EnvoyFilter, VirtualService или Route).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 0.01 }
+            ]
+          },
+          "unit": "errps"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "expr": "sum(rate(pilot_total_xds_rejects{pod=~\"$pod\"}[2m])) or sum(rate(pilot_xds_push_errors{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "NACKs / Ошибки xDS",
+          "refId": "A"
+        }
+      ],
+      "title": "Ошибки и NACK конфигураций xDS",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество неудачных попыток автоматической инжекции сайдкаров. Норма: строго 0. Если значение растет, поды в кластере не смогут запуститься из-за сбоя Admission Webhook.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 0.01 }
+            ]
+          },
+          "unit": "errps"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "expr": "sum(rate(sidecar_injection_failure_total{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Injection Failures",
+          "refId": "A"
+        }
+      ],
+      "title": "Сбои инжекции сайдкаров (Injection Errors)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "⚡ xDS Синхронизация, Пуши и NACK Траблшутинг",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Разбивка xDS пушей по типам: CDS (кластеры/сервисы), EDS (эндпоинты/поды), LDS (листенеры/порты), RDS (маршруты). 90%+ трафика xDS обычно составляет EDS (обновление IP подов). Если высока доля CDS/LDS — часто меняются CRD Istio.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "stacking": { "group": "A", "mode": "normal" } },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "id": 5,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (type) (rate(pilot_xds_pushes{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "xDS {{type}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Интенсивность xDS по протоколам (CDS / EDS / LDS / RDS)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Отклоненные конфигурации (NACK) с разбивкой по типам. Позволяет мгновенно понять, что сломано: LDS (ошибки в Gateway/VirtualService), CDS (ошибки в DestinationRule/ServiceEntry), RDS (конфликт префиксов/хедеров).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1 },
+          "unit": "errps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "id": 6,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (type) (rate(pilot_total_xds_rejects{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "NACK: {{type}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Отклоненные Envoy конфигурации (NACK by Type)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Среднее время и P99 задержка генерации и доставки xDS конфигурации в Envoy. Норма: < 100ms. Если значение растет выше 1s, Envoy в кластере получают информацию об удаленных/созданных подах с опозданием, провоцируя 503 ошибки.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum(rate(pilot_xds_push_time_sum{pod=~\"$pod\"}[2m])) / sum(rate(pilot_xds_push_time_count{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Среднее время пуша (Avg Push Time)",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(pilot_xds_push_time_bucket{pod=~\"$pod\"}[2m])))",
+          "legendFormat": "P99 Push Time",
+          "refId": "B"
+        }
+      ],
+      "title": "Задержка доставки конфигурации (xDS Push Duration)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Задержка дебаунсинга (пакетирования изменений). istiod не шлет xDS на каждое единичное изменение, а накапливает их (по умолчанию 100ms). Рост графика выше 500ms говорит о перегрузке внутренней очереди событий istiod.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "id": 8,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum(rate(pilot_debounce_delays_sum{pod=~\"$pod\"}[2m])) / sum(rate(pilot_debounce_delays_count{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Средняя задержка дебаунсинга (Avg)",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(pilot_debounce_delays_bucket{pod=~\"$pod\"}[2m])))",
+          "legendFormat": "P99 Debounce Delay",
+          "refId": "B"
+        }
+      ],
+      "title": "Задержка группировки событий (xDS Debounce Delays)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "id": 102,
+      "title": "💉 Sidecar Injection, Webhooks & Валидация Конфигов",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Интенсивность запросов на внедрение сайдкаров (istio-sidecar-injector). Совпадает со скоростью создания новых подов в неймспейсах с лейблом `istio-injection=enabled`.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "reqps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 23 },
+      "id": 9,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum(rate(sidecar_injection_requests_total{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Всего запросов инжекции",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(sidecar_injection_failure_total{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Отказы инжекции (Failures)",
+          "refId": "B"
+        }
+      ],
+      "title": "Запросы на инжекцию сайдкаров (Sidecar Injection)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Задержка ответа вебхука мутации (Sidecar Injection Webhook Duration). Если задержка приближается к таймауту kube-apiserver (10s), создание подов в кластере блокируется.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 23 },
+      "id": 10,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum(rate(sidecar_injection_duration_seconds_sum{pod=~\"$pod\"}[2m])) / sum(rate(sidecar_injection_duration_seconds_count{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Средняя задержка инжекции",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(sidecar_injection_duration_seconds_bucket{pod=~\"$pod\"}[2m])))",
+          "legendFormat": "P99 Задержка инжекции",
+          "refId": "B"
+        }
+      ],
+      "title": "Время обработки вебхука инжекции (Injection Latency)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Ошибки валидации CRD ресурсов Istio (VirtualService, Gateway, DestinationRule, EnvoyFilter). Если валидация отклоняет ресурс — манифест отбрасывается на этапе kubectl apply.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1 },
+          "unit": "errps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 23 },
+      "id": 11,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (reason) (rate(galley_validation_failed{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Сбой валидации: {{reason}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(galley_validation_passed{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Успешно валидировано",
+          "refId": "B"
+        }
+      ],
+      "title": "Валидация манифестов Istio (Config Validation)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 31 },
+      "id": 103,
+      "title": "🔒 mTLS Сертификаты и Центр Авторизации (Citadel / Istio CA)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество успешно подписанных CSR и выданных mTLS сертификатов для рабочих нагрузок в секунду. Всплески происходят при массовом рестарте подов или истечении TTL сертификатов.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 32 },
+      "id": 12,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum(rate(citadel_server_success_cert_issuance_count{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Выдано сертификатов / сек",
+          "refId": "A"
+        }
+      ],
+      "title": "Частота выпуска сертификатов (Cert Issuance Rate)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество ошибок при обработке запросов на выдачу сертификатов (Citadel CSR Errors). Норма: 0. Если есть ошибки, Envoy сайдкары не смогут получить SPIFFE identity, и трафик mTLS будет блокироваться с TLS Handshake Error.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1 },
+          "unit": "errps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 32 },
+      "id": 13,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum(rate(citadel_server_csr_err_count{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Ошибки CSR",
+          "refId": "A"
+        }
+      ],
+      "title": "Ошибки выпуска mTLS сертификатов (CSR Errors)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Оставшееся время жизни корневого сертификата CA Istio (в днях). Если значение опускается ниже 30 дней, требуется срочная ротация корневого сертификата кластера.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 30 },
+              { "color": "green", "value": 90 }
+            ]
+          },
+          "unit": "d"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 32 },
+      "id": 14,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "expr": "(citadel_server_root_cert_expiry_timestamp{pod=~\"$pod\"} - time()) / 86400",
+          "legendFormat": "Дней до истечения CA",
+          "refId": "A"
+        }
+      ],
+      "title": "Срок жизни корневого CA сертификата (Root Expiry)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 40 },
+      "id": 104,
+      "title": "🗺️ Синхронизация с Kubernetes реестром (Kube Registry)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "События в реестре Kubernetes, обрабатываемые Pilot (добавление, обновление и удаление сервисов и эндпоинтов). Позволяет сопоставить всплески xDS пушей с внешними событиями внутри k8s.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 41 },
+      "id": 15,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (event) (rate(pilot_k8s_reg_events{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Событие: {{event}}",
+          "refId": "A"
+        }
+      ],
+      "title": "События реестра Kubernetes (Kube Registry Events)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество сервисов и виртуальных сервисов (VirtualService), удерживаемых istiod в оперативной памяти для построения графа маршрутизации. Показывает масштаб и сложность mesh-топологии.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 41 },
+      "id": 16,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum(pilot_services{pod=~\"$pod\"})",
+          "legendFormat": "Всего Services",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(pilot_virt_services{pod=~\"$pod\"})",
+          "legendFormat": "Всего VirtualServices",
+          "refId": "B"
+        }
+      ],
+      "title": "Отслеживаемые сервисы и VirtualServices в Mesh",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 49 },
+      "id": 105,
+      "title": "⚙️ Системные ресурсы istiod (Saturation & Runtime)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Потребление ядер процессора инстансами istiod. Резкий рост CPU происходит при компиляции больших графов EnvoyFilter или при шторме переподключений сайдкаров.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 50 },
+      "id": 17,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "rate(process_cpu_seconds_total{pod=~\"$pod\"}[2m])",
+          "legendFormat": "CPU: {{pod}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Утилизация CPU (istiod CPU Cores)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Потребление физической памяти (RSS). В больших кластерах (тысячи подов) без настройки Sidecar.istio.io ресурсы istiod могут расти линейно до OOMKilled.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 50 },
+      "id": 18,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "process_resident_memory_bytes{pod=~\"$pod\"}",
+          "legendFormat": "RSS: {{pod}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Потребление оперативной памяти (RSS Memory)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество активных горутин в процессе Go. Экспоненциальный рост указывает на блокировку gRPC стримов или зависание вызовов Kube API / Webhooks.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 50 },
+      "id": 19,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "go_goroutines{pod=~\"$pod\"}",
+          "legendFormat": "Горутины: {{pod}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Активные Go-горутины (Goroutines)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["kubernetes", "istio", "istiod", "service-mesh", "troubleshooting"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "type": "datasource"
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "definition": "label_values(pilot_xds, pod)",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "pod",
+        "query": {
+          "query": "label_values(pilot_xds, pod)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Kubernetes / Istio Control Plane (istiod) Observability & Troubleshooting (RU)",
+  "uid": "istio-control-plane-troubleshooting-ru",
+  "version": 1
+}
