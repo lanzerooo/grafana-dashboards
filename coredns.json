@@ -1,0 +1,588 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "📌 Золотые сигналы CoreDNS (Golden Signals)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Общий объем входящих DNS-запросов (QPS) со всех рабочих нагрузок кластера. Резкий экспоненциальный взлет указывает на зациклившийся сетевой вызов, шторм реконсиляций или отсутствие локального DNS-кэширования в приложениях.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "reqps"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(coredns_dns_requests_total{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Текущий DNS QPS",
+          "refId": "A"
+        }
+      ],
+      "title": "Общий DNS QPS (Request Rate)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Процент запросов, завершившихся сбоем резолвинга (SERVFAIL, REFUSED, FORMERR). В стабильном кластере должен быть строго < 0.1%. Значения выше 0.5% означают недоступность вышестоящих серверов или потерю связи с Kube-API.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "red", "value": 2 }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "(sum(rate(coredns_dns_responses_total{pod=~\"$pod\",rcode=~\"SERVFAIL|REFUSED|FORMERR\"}[2m])) / sum(rate(coredns_dns_responses_total{pod=~\"$pod\"}[2m]))) * 100 or (0 * sum(rate(coredns_dns_requests_total{pod=~\"$pod\"}[2m])))",
+          "legendFormat": "% Ошибок SERVFAIL/REFUSED",
+          "refId": "A"
+        }
+      ],
+      "title": "Доля критических ошибок (% SERVFAIL)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "99-й перцентиль времени обработки DNS-запроса. Норма для кластерных зон: < 2-5ms, для внешних апстримов: < 30ms. Если P99 превышает 100ms, в приложениях начнутся сетевые таймауты.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.01 },
+              { "color": "red", "value": 0.05 }
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(coredns_dns_request_duration_seconds_bucket{pod=~\"$pod\"}[2m]))) or (sum(rate(coredns_dns_request_duration_seconds_sum{pod=~\"$pod\"}[2m])) / sum(rate(coredns_dns_request_duration_seconds_count{pod=~\"$pod\"}[2m])))",
+          "legendFormat": "P99 / Avg Latency",
+          "refId": "A"
+        }
+      ],
+      "title": "P99 Задержка DNS (Request Latency)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Процент запросов, успешно отданных из локального кэша CoreDNS без обращения к Kube-API или внешним серверам. Норма: > 80-90%. Низкое значение указывает на агрессивный сброс кэша или шторм уникальных случайных имен (NXDOMAIN).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 60 },
+              { "color": "green", "value": 80 }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "(sum(rate(coredns_cache_requests_total{pod=~\"$pod\",type=\"hit\"}[2m])) / (sum(rate(coredns_cache_requests_total{pod=~\"$pod\",type=\"hit\"}[2m])) + sum(rate(coredns_cache_requests_total{pod=~\"$pod\",type=\"miss\"}[2m])))) * 100 or ((sum(rate(coredns_cache_hits_total{pod=~\"$pod\"}[2m])) / (sum(rate(coredns_cache_hits_total{pod=~\"$pod\"}[2m])) + sum(rate(coredns_cache_misses_total{pod=~\"$pod\"}[2m])))) * 100)",
+          "legendFormat": "% Cache Hits",
+          "refId": "A"
+        }
+      ],
+      "title": "Эффективность кэша (Cache Hit Ratio)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "📊 Коды ответов, Типы запросов и Аномалии (RCODE, Types & NXDOMAIN)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Разбивка DNS ответов по RCODE: NOERROR (успех), NXDOMAIN (домен не существует), SERVFAIL (сбой сервера), REFUSED (запрос отклонен).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "stacking": { "group": "A", "mode": "normal" } },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "id": 5,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (rcode) (rate(coredns_dns_responses_total{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "RCODE: {{rcode}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Ответы по кодам RCODE (Responses by Code)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Разбивка запросов по типам DNS записей: A (IPv4), AAAA (IPv6), SRV (поиск сервисов и портов), PTR (обратный DNS), TXT (валидация). Если доля AAAA высока в IPv4-only кластере — приложения генерируют лишние запросы из-за dual-stack резолвинга.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "id": 6,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (type) (rate(coredns_dns_requests_total{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Тип: {{type}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Запросы по типам записей (Record Types)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Частота ответов NXDOMAIN (домен не найден). В Kubernetes до 70-80% всех NXDOMAIN вызваны поведением ndots:5 в /etc/resolv.conf. Резкий скачок указывает на сбойный сервис, резолвящий несуществующий хост в бесконечном цикле.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum(rate(coredns_dns_responses_total{pod=~\"$pod\",rcode=\"NXDOMAIN\"}[2m])) or (0 * sum(rate(coredns_dns_requests_total{pod=~\"$pod\"}[2m])))",
+          "legendFormat": "NXDOMAIN Rate",
+          "refId": "A"
+        }
+      ],
+      "title": "Аномалии NXDOMAIN (Индикатор проблемы ndots:5)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество аварийных падений (panics) внутри плагинов CoreDNS. Норма: строго 0. Любое ненулевое значение свидетельствует о баге в версии CoreDNS или сбое парсинга специфического сетевого пакета.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "id": 8,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum(coredns_panics_total{pod=~\"$pod\"}) or (0 * sum(rate(coredns_dns_requests_total{pod=~\"$pod\"}[2m])))",
+          "legendFormat": "Всего паник (Panics)",
+          "refId": "A"
+        }
+      ],
+      "title": "Аварийные падения CoreDNS (Panics Total)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "id": 102,
+      "title": "⚡ Задержки (Latency), Протоколы и Сеть",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Квантили P50, P90, P99 времени обработки входящих DNS-запросов и среднее значение. Если P99 подскакивает выше 50ms при стабильном P50 — задержки вызваны только частью запросов (скорее всего, некэшированными внешними вызовами).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 23 },
+      "id": 9,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(coredns_dns_request_duration_seconds_bucket{pod=~\"$pod\"}[2m])))",
+          "legendFormat": "P99 Latency",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.90, sum by (le) (rate(coredns_dns_request_duration_seconds_bucket{pod=~\"$pod\"}[2m])))",
+          "legendFormat": "P90 Latency",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(coredns_dns_request_duration_seconds_bucket{pod=~\"$pod\"}[2m])))",
+          "legendFormat": "P50 Latency",
+          "refId": "C"
+        },
+        {
+          "expr": "sum(rate(coredns_dns_request_duration_seconds_sum{pod=~\"$pod\"}[2m])) / sum(rate(coredns_dns_request_duration_seconds_count{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Avg Latency",
+          "refId": "D"
+        }
+      ],
+      "title": "Квантили времени обработки запросов (DNS Latency)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Разбивка DNS-запросов по транспортным протоколам (UDP vs TCP). 99%+ DNS трафика должно идти по UDP. Высокая доля TCP указывает на то, что ответы не помещаются в стандартный буфер UDP (EDNS0 > 512-1232 байт) и клиенты принудительно переключаются на тяжелый TCP fallback.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 23 },
+      "id": 10,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (proto) (rate(coredns_dns_requests_total{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Протокол: {{proto}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Транспортный протокол (UDP vs TCP Fallback)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 31 },
+      "id": 103,
+      "title": "🌐 Апстримы и Внешний резолвинг (Forward / Upstream Resolvers)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Интенсивность запросов, перенаправленных плагином forward во внешние/вышестоящие DNS серверы (например, 169.254.169.254, 8.8.8.8 или локальные /etc/resolv.conf хоста).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "stacking": { "group": "A", "mode": "normal" } },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+      "id": 11,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (to) (rate(coredns_forward_requests_total{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Апстрим: {{to}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Запросы к вышестоящим серверам (Forward Upstreams)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "P99 и среднее время ответа вышестоящих DNS серверов. Главная причина тормозов внешних интеграций приложений. Если задержка апстрима уходит выше 100-200ms, CoreDNS не может вернуть ответ вовремя, хотя сам работает исправно.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+      "id": 12,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (to, le) (rate(coredns_forward_request_duration_seconds_bucket{pod=~\"$pod\"}[2m])))",
+          "legendFormat": "P99 Апстрим: {{to}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (to) (rate(coredns_forward_request_duration_seconds_sum{pod=~\"$pod\"}[2m])) / sum by (to) (rate(coredns_forward_request_duration_seconds_count{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Avg Апстрим: {{to}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Задержка ответов апстримов (Upstream Latency)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Ошибки RCODE, полученные от вышестоящих серверов. Позволяет точно понять: проблема резолвинга вызвана внутренней сетью кластера или вышестоящий DNS-провайдер возвращает сбои.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1 },
+          "unit": "errps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 40 },
+      "id": 13,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (to, rcode) (rate(coredns_forward_responses_total{pod=~\"$pod\",rcode!=\"NOERROR\"}[2m])) or (0 * sum(rate(coredns_forward_requests_total{pod=~\"$pod\"}[2m])))",
+          "legendFormat": "{{to}} -> {{rcode}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Ошибки вышестоящих DNS серверов (Upstream Errors by Code)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 48 },
+      "id": 104,
+      "title": "🗄️ Эффективность и Размер Кэша (Cache Plugin)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Сравнение частоты попаданий в кэш (Cache Hits) и промахов (Cache Misses). Если количество промахов превышает попадания — кэш не справляется с разнообразием запрашиваемых доменов или настроен слишком маленький TTL (по умолчанию 30с).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 49 },
+      "id": 14,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum(rate(coredns_cache_requests_total{pod=~\"$pod\",type=\"hit\"}[2m])) or sum(rate(coredns_cache_hits_total{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Попадания (Cache Hits)",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(coredns_cache_requests_total{pod=~\"$pod\",type=\"miss\"}[2m])) or sum(rate(coredns_cache_misses_total{pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Промахи (Cache Misses)",
+          "refId": "B"
+        }
+      ],
+      "title": "Попадания в кэш vs Промахи (Hits vs Misses)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество записей в кэше CoreDNS: success (успешные ответы) и denial (кэш негативных ответов NXDOMAIN/NODATA). По умолчанию лимит кэша — 9984 записей. Достижение лимита приводит к вытеснению актуальных записей.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 49 },
+      "id": 15,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (server, type) (coredns_cache_entries{pod=~\"$pod\"})",
+          "legendFormat": "{{server}} ({{type}})",
+          "refId": "A"
+        }
+      ],
+      "title": "Размер кэша по типам записей (Cache Entries)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 57 },
+      "id": 105,
+      "title": "⚙️ Системные ресурсы CoreDNS (Saturation & Goroutines)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Потребление ядер процессора (CPU Cores) каждым подом CoreDNS. По умолчанию CoreDNS имеет низкие requests/limits (100m CPU). При приближении к лимиту ядро Linux начинает троттлить процесс, провоцируя дроп входящих UDP сокетов.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 58 },
+      "id": 16,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (pod) (rate(process_cpu_seconds_total{pod=~\"$pod\"}[2m])) or sum by (pod) (rate(container_cpu_usage_seconds_total{container=\"coredns\",pod=~\"$pod\"}[2m]))",
+          "legendFormat": "CPU: {{pod}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Утилизация CPU (CoreDNS CPU Cores)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Потребление оперативной памяти (RSS). При росте числа сервисов в кластере плагин kubernetes держит их в оперативной памяти. Утечка памяти приводит к внезапному OOMKilled.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 58 },
+      "id": 17,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (pod) (process_resident_memory_bytes{pod=~\"$pod\"}) or sum by (pod) (container_memory_working_set_bytes{container=\"coredns\",pod=~\"$pod\"})",
+          "legendFormat": "RSS: {{pod}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Потребление памяти (Working Set Memory)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество активных Go-горутин. Резкий экспоненциальный взлет горутин — индикатор зависших сетевых соединений к медленным вышестоящим серверам (forward timeouts) или залипания UDP/TCP сокетов.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 58 },
+      "id": 18,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (pod) (go_goroutines{pod=~\"$pod\"})",
+          "legendFormat": "Горутины: {{pod}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Активные Go-горутины (Индикатор зависаний)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["kubernetes", "coredns", "dns", "networking", "troubleshooting"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "type": "datasource"
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "definition": "label_values(coredns_dns_requests_total, pod)",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "pod",
+        "query": {
+          "query": "label_values(coredns_dns_requests_total, pod)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Kubernetes / CoreDNS Deep Observability & Troubleshooting (RU)",
+  "uid": "coredns-deep-troubleshooting-ru",
+  "version": 1
+}
