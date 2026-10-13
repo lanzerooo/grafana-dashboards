@@ -1,0 +1,544 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "📌 Золотые сигналы и Статус Лидера (Leader Election & Health)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Показывает, какой именно инстанс KCM сейчас держит активную Lease-блокировку в kube-system (1 = Активный Лидер, 0 = Standby). В HA-кластере ровно один инстанс должен быть равен 1.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "0": { "color": "blue", "text": "STANDBY" }, "1": { "color": "green", "text": "LEADER" } }, "type": "value" }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "max by (instance) (leader_election_master_status{name=\"kube-controller-manager\",instance=~\"$instance\"})",
+          "legendFormat": "{{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Статус Лидера (Active Leader)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Суммарное количество задач во всех очередях контроллеров KCM прямо сейчас. Норма в стабильном кластере: < 100-300. Рост выше 1000-2000 означает тяжелый затор в реконсиляции ресурсов.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 500 },
+              { "color": "red", "value": 2000 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(workqueue_depth{instance=~\"$instance\"})",
+          "legendFormat": "Всего задач в очередях",
+          "refId": "A"
+        }
+      ],
+      "title": "Суммарный бэклог очередей (Total Workqueue Depth)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Задержка ожидания в Rate Limiter клиента client-go. Норма: строго < 10-20ms. Если значение растет, KCM сам блокирует свои запросы к Kube-API, из-за чего контроллеры не успевают применять изменения.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.05 },
+              { "color": "red", "value": 0.2 }
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(rest_client_rate_limiter_duration_seconds_sum{instance=~\"$instance\"}[2m])) / sum(rate(rest_client_rate_limiter_duration_seconds_count{instance=~\"$instance\"}[2m])) or (0 * sum(rate(workqueue_adds_total{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "Avg Rate Limiter Wait",
+          "refId": "A"
+        }
+      ],
+      "title": "Троттлинг Client-Go (Rate Limiter Wait)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Смены лидера за последний час. В стабильном кластере значение должно быть равно 0. Частые смены лидера указывают на сетевые разрывы между control-plane нодами или зависания KCM на операциях ввода-вывода.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 3 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(changes(leader_election_master_status{name=\"kube-controller-manager\",instance=~\"$instance\"}[1h])) / 2",
+          "legendFormat": "Смен лидера за час",
+          "refId": "A"
+        }
+      ],
+      "title": "Смены Лидера KCM (Leader Flaps / 1h)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "🎯 Глубокий Траблшутинг HPA (HorizontalPodAutoscaler In-Depth)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество HPA-объектов, ожидающих обработки в очереди прямо сейчас. Если значение держится на сотнях или тысячах — воркеры HPA парализованы задержками ответов от metrics-server или prometheus-adapter.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 100 },
+              { "color": "red", "value": 1000 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 6 },
+      "id": 5,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (instance) (workqueue_depth{name=\"horizontalpodautoscaler\",instance=~\"$instance\"})",
+          "legendFormat": "HPA Backlog: {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Глубина очереди HPA (HPA Queue Depth Backlog)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Сколько времени задача HPA проводит в очереди до того, как свободный воркер возьмет ее на расчет. Норма: < 1-5s. Если задержка измеряется десятками секунд или минутами — автомасштабирование работает с критическим опозданием.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 6 },
+      "id": 6,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(workqueue_queue_duration_seconds_bucket{name=\"horizontalpodautoscaler\",instance=~\"$instance\"}[2m])))",
+          "legendFormat": "P99 HPA Queue Wait",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(workqueue_queue_duration_seconds_sum{name=\"horizontalpodautoscaler\",instance=~\"$instance\"}[2m])) / sum(rate(workqueue_queue_duration_seconds_count{name=\"horizontalpodautoscaler\",instance=~\"$instance\"}[2m]))",
+          "legendFormat": "Avg HPA Queue Wait",
+          "refId": "B"
+        }
+      ],
+      "title": "Время ожидания в очереди HPA (Queue Duration)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Сколько времени уходит на реконсиляцию одного HPA-объекта (запрос в metrics API + расчет формулы + патч Deployment). Норма: 5-20ms. Если значение > 200-500ms — тормозит metrics-server или Custom Metrics API.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 6 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(workqueue_work_duration_seconds_bucket{name=\"horizontalpodautoscaler\",instance=~\"$instance\"}[2m])))",
+          "legendFormat": "P99 HPA Work Duration",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(workqueue_work_duration_seconds_sum{name=\"horizontalpodautoscaler\",instance=~\"$instance\"}[2m])) / sum(rate(workqueue_work_duration_seconds_count{name=\"horizontalpodautoscaler\",instance=~\"$instance\"}[2m]))",
+          "legendFormat": "Avg HPA Work Duration",
+          "refId": "B"
+        }
+      ],
+      "title": "Время выполнения одной синхронизации HPA (Work Duration)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+      "id": 102,
+      "title": "📊 Очереди Workqueue контроллеров (Backlog, Delays & Retries)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Топ-10 самых перегруженных очередей контроллеров по текущей глубине. Позволяет мгновенно определить, какой именно контроллер испытывает проблемы (например, deployment, replicaset, endpointslice, job).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
+      "id": 8,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (name) (workqueue_depth{instance=~\"$instance\"}))",
+          "legendFormat": "Очередь: {{name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Топ-10 очередей по глубине (Top Workqueue Depth)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Интенсивность повторных попыток (retries) задач из-за ошибок синхронизации. Если график растет — контроллер не может завершить обработку объекта (например, конфликт версий resourceVersion или недоступность зависимых CRD).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 50, "lineWidth": 1 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
+      "id": 9,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "topk(7, sum by (name) (rate(workqueue_retries_total{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "Ретраи: {{name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Топ контроллеров по ретраям с ошибками (Workqueue Retries)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Самые долгие очереди по времени нахождения задач в ожидании (Queue Duration P99 / Avg). Показывает, в каких контроллерах воркеры не успевают разбирать поток поступающих изменений.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 23 },
+      "id": 10,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "topk(7, sum by (name) (rate(workqueue_queue_duration_seconds_sum{instance=~\"$instance\"}[2m])) / sum by (name) (rate(workqueue_queue_duration_seconds_count{instance=~\"$instance\"}[2m])) > 0)",
+          "legendFormat": "Очередь {{name}} (avg)",
+          "refId": "A"
+        }
+      ],
+      "title": "Топ очередей по времени ожидания задач (Slowest Queue Duration)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Контроллеры, чьи воркеры тратят больше всего времени на выполнение одной итерации (Work Duration). Высокие значения в deployment или job указывают на тяжелые расчеты статусов тысяч подов.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 23 },
+      "id": 11,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "topk(7, sum by (name) (rate(workqueue_work_duration_seconds_sum{instance=~\"$instance\"}[2m])) / sum by (name) (rate(workqueue_work_duration_seconds_count{instance=~\"$instance\"}[2m])) > 0)",
+          "legendFormat": "Воркер {{name}} (avg)",
+          "refId": "A"
+        }
+      ],
+      "title": "Топ контроллеров по времени обработки задачи (Slowest Work Duration)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 31 },
+      "id": 103,
+      "title": "🌐 Взаимодействие с Kube-API и Rate Limiting (Client-Go REST)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Интенсивность запросов KCM к kube-apiserver в разбивке по статус-кодам. Появление кодов 429 указывает на троттлинг со стороны API Priority and Fairness (APF), а 5xx — на сбои бэкенда etcd.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "stacking": { "group": "A", "mode": "normal" } },
+          "unit": "reqps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+      "id": 12,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (code) (rate(rest_client_requests_total{instance=~\"$instance\"}[2m]))",
+          "legendFormat": "HTTP {{code}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Запросы к kube-apiserver по кодам ответов (REST Client Requests)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Квантили P50, P90, P99 времени выполнения HTTP/gRPC запросов KCM к kube-apiserver. Если задержка > 50-100ms, сетевой канал до control-plane перегружен или apiserver медленно выполняет запись.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+      "id": 13,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(rest_client_request_duration_seconds_bucket{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "P99 REST Latency",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.90, sum by (le) (rate(rest_client_request_duration_seconds_bucket{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "P90 REST Latency",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(rest_client_request_duration_seconds_bucket{instance=~\"$instance\"}[2m])))",
+          "legendFormat": "P50 REST Latency",
+          "refId": "C"
+        },
+        {
+          "expr": "sum(rate(rest_client_request_duration_seconds_sum{instance=~\"$instance\"}[2m])) / sum(rate(rest_client_request_duration_seconds_count{instance=~\"$instance\"}[2m]))",
+          "legendFormat": "Avg REST Latency",
+          "refId": "D"
+        }
+      ],
+      "title": "Задержка REST-запросов к API (Client Request Latency)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 40 },
+      "id": 104,
+      "title": "⚙️ Системные ресурсы KCM (Saturation & Runtime)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Потребление процессорного времени (Cores) процессом kube-controller-manager. При приближении к пределу доступных ядер воркеры начинают замедляться, накапливая задачи в очередях.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 41 },
+      "id": 14,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (instance) (rate(process_cpu_seconds_total{instance=~\"$instance\"}[2m]))",
+          "legendFormat": "CPU Cores: {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Утилизация CPU (KCM Cores)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Резидентная оперативная память (RSS). KCM кэширует в локальной памяти практически все ресурсы кластера (SharedIndexInformer). При тысячах неймспейсов память может расти до нескольких гигабайт.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 41 },
+      "id": 15,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (instance) (process_resident_memory_bytes{instance=~\"$instance\"})",
+          "legendFormat": "RSS: {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Оперативная память (Resident Memory RSS)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество активных Go-горутин. Резкий экспоненциальный взлет горутин — индикатор зависания HTTP-соединений к apiserver или зависания воркеров на таймаутах внешних API метрик.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 41 },
+      "id": 16,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (instance) (go_goroutines{instance=~\"$instance\"})",
+          "legendFormat": "Горутины: {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Активные Go-горутины (Goroutines)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["kubernetes", "kube-controller-manager", "workqueue", "hpa", "troubleshooting"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "type": "datasource"
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "definition": "label_values(workqueue_depth, instance)",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "instance",
+        "query": {
+          "query": "label_values(workqueue_depth, instance)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Kubernetes / kube-controller-manager Deep Observability & Troubleshooting (RU)",
+  "uid": "k8s-kcm-deep-troubleshooting-ru",
+  "version": 1
+}
