@@ -3,7 +3,7 @@
     {
       "name": "DS_PROMETHEUS",
       "label": "Prometheus",
-      "description": "Prometheus с kube-state-metrics и статистикой томов kubelet",
+      "description": "Prometheus с kube-state-metrics, kubelet volume stats и телеметрией Istio",
       "type": "datasource",
       "pluginId": "prometheus",
       "pluginName": "Prometheus"
@@ -32,7 +32,7 @@
   "id": null,
   "uid": "sentry-k8s-traffic-light",
   "title": "Sentry · Светофор Kubernetes",
-  "description": "Состояние Sentry и инфраструктуры по Kubernetes-метрикам. Выберите namespace Sentry и при необходимости namespace его зависимостей. Если источник собирает несколько кластеров, задайте Cluster (label cluster). Для HTTP выберите instance из probe_success. Внешние зависимости видны при подключённых пробах или при наличии их workloads в выбранном namespace. Компонентные плитки используют имена workloads, а Kubernetes-плитки — фактический инвентарь namespace.",
+  "description": "Сводный светофор Sentry и Istio. Детали Kubernetes показывают только критичные объекты, заполнение PVC — от 90%. Для Istio укажите namespace control plane, namespace шлюзов и при необходимости подстройте шаблоны имён. Istio Gateway отображается по readiness workload шлюза. HTTP 5xx и xDS используют метрики Envoy и Istiod. HTTP Blackbox включается через отдельный фильтр instance.",
   "tags": [
     "sentry",
     "kubernetes",
@@ -41,7 +41,7 @@
   ],
   "timezone": "browser",
   "schemaVersion": 38,
-  "version": 1,
+  "version": 2,
   "editable": true,
   "graphTooltip": 0,
   "refresh": "1m",
@@ -100,6 +100,62 @@
         "includeAll": false,
         "refresh": 1,
         "sort": 1,
+        "hide": 0
+      },
+      {
+        "type": "textbox",
+        "name": "istio_ns",
+        "label": "Istiod namespaces",
+        "query": "istio-system",
+        "current": {
+          "selected": true,
+          "text": "istio-system",
+          "value": "istio-system"
+        },
+        "description": "Регулярное выражение namespace, в котором установлен Istiod.",
+        "options": [],
+        "hide": 0
+      },
+      {
+        "type": "textbox",
+        "name": "gateway_ns",
+        "label": "Gateway namespaces",
+        "query": "istio-system|istio-ingress|istio-egress",
+        "current": {
+          "selected": true,
+          "text": "istio-system|istio-ingress|istio-egress",
+          "value": "istio-system|istio-ingress|istio-egress"
+        },
+        "description": "Регулярное выражение namespace, в которых находятся workload Istio-шлюзов.",
+        "options": [],
+        "hide": 0
+      },
+      {
+        "type": "textbox",
+        "name": "ingress_gateway",
+        "label": "Ingress workloads",
+        "query": ".*ingress.*",
+        "current": {
+          "selected": true,
+          "text": ".*ingress.*",
+          "value": ".*ingress.*"
+        },
+        "description": "Регулярное выражение по именам workload входных шлюзов.",
+        "options": [],
+        "hide": 0
+      },
+      {
+        "type": "textbox",
+        "name": "egress_gateway",
+        "label": "Egress workloads",
+        "query": ".*egress.*",
+        "current": {
+          "selected": true,
+          "text": ".*egress.*",
+          "value": ".*egress.*"
+        },
+        "description": "Регулярное выражение по именам workload исходящих шлюзов.",
+        "options": [],
         "hide": 0
       },
       {
@@ -1393,8 +1449,8 @@
     },
     {
       "type": "row",
-      "id": 14,
-      "title": "Kubernetes · workloads",
+      "id": 22,
+      "title": "Istio · control plane и трафик",
       "collapsed": false,
       "panels": [],
       "gridPos": {
@@ -1406,9 +1462,9 @@
     },
     {
       "type": "stat",
-      "id": 15,
-      "title": "Deployment",
-      "description": "Красный — нет доступных реплик при desired > 0 или превышен срок rollout. Жёлтый — частичная доступность, rollout или scale-to-zero.",
+      "id": 31,
+      "title": "Istiod",
+      "description": "Готовность workload control plane в выбранных Istio namespace. Поиск по имени istiod или istio-pilot.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
@@ -1416,8 +1472,8 @@
       "gridPos": {
         "x": 0,
         "y": 10,
-        "w": 24,
-        "h": 7
+        "w": 6,
+        "h": 4
       },
       "targets": [
         {
@@ -1427,11 +1483,11 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "(((((((max by (cluster,namespace,deployment) (kube_deployment_status_replicas_available{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) == 0) and on (cluster,namespace,deployment) (((max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) > 0)))\nor ((max by (cluster,namespace,deployment) (kube_deployment_status_condition{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",condition=\"Progressing\",status=\"false\",reason=\"ProgressDeadlineExceeded\"}) == 1) and on (cluster,namespace,deployment) (((max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) > 0)))) * 0 + 2))\nor ((((((max by (cluster,namespace,deployment) (kube_deployment_status_replicas_available{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) < max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) and on (cluster,namespace,deployment) (max by (cluster,namespace,deployment) (kube_deployment_status_replicas_available{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) > 0))\nor ((max by (cluster,namespace,deployment) (kube_deployment_status_replicas_updated{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) < max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) and on (cluster,namespace,deployment) (((max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) > 0)))\nor (max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) == 0))\nor (max by (cluster,namespace,deployment) (kube_deployment_status_observed_generation{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) < max by (cluster,namespace,deployment) (kube_deployment_metadata_generation{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}))) * 0 + 1))\nor (((((max by (cluster,namespace,deployment) (kube_deployment_status_replicas_available{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) >= max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) and on (cluster,namespace,deployment) (max by (cluster,namespace,deployment) (kube_deployment_status_replicas_updated{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) >= max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}))) and on (cluster,namespace,deployment) (((max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) > 0))) * 0 + 0))\nor (((max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) * 0 + -1))))\nor on () (label_replace(label_replace(vector(-1), \"namespace\", \"—\", \"__name__\", \".*\"), \"deployment\", \"—\", \"__name__\", \".*\"))",
+          "expr": "max ((label_replace(((((((max by (cluster,namespace,deployment) (kube_deployment_status_replicas_available{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"(istiod|istio-pilot)(-.*)?\"}) == 0) and on (cluster,namespace,deployment) (((max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"(istiod|istio-pilot)(-.*)?\"})) > 0)))\nor ((max by (cluster,namespace,deployment) (kube_deployment_status_condition{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"(istiod|istio-pilot)(-.*)?\",condition=\"Progressing\",status=\"false\",reason=\"ProgressDeadlineExceeded\"}) == 1) and on (cluster,namespace,deployment) (((max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"(istiod|istio-pilot)(-.*)?\"})) > 0)))) * 0 + 2))\nor ((((((max by (cluster,namespace,deployment) (kube_deployment_status_replicas_available{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"(istiod|istio-pilot)(-.*)?\"}) < max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"(istiod|istio-pilot)(-.*)?\"})) and on (cluster,namespace,deployment) (max by (cluster,namespace,deployment) (kube_deployment_status_replicas_available{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"(istiod|istio-pilot)(-.*)?\"}) > 0))\nor ((max by (cluster,namespace,deployment) (kube_deployment_status_replicas_updated{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"(istiod|istio-pilot)(-.*)?\"}) < max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"(istiod|istio-pilot)(-.*)?\"})) and on (cluster,namespace,deployment) (((max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"(istiod|istio-pilot)(-.*)?\"})) > 0)))\nor (max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"(istiod|istio-pilot)(-.*)?\"}) == 0))\nor (max by (cluster,namespace,deployment) (kube_deployment_status_observed_generation{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"(istiod|istio-pilot)(-.*)?\"}) < max by (cluster,namespace,deployment) (kube_deployment_metadata_generation{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"(istiod|istio-pilot)(-.*)?\"}))) * 0 + 1))\nor (((((max by (cluster,namespace,deployment) (kube_deployment_status_replicas_available{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"(istiod|istio-pilot)(-.*)?\"}) >= max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"(istiod|istio-pilot)(-.*)?\"})) and on (cluster,namespace,deployment) (max by (cluster,namespace,deployment) (kube_deployment_status_replicas_updated{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"(istiod|istio-pilot)(-.*)?\"}) >= max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"(istiod|istio-pilot)(-.*)?\"}))) and on (cluster,namespace,deployment) (((max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"(istiod|istio-pilot)(-.*)?\"})) > 0))) * 0 + 0))\nor (((max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"(istiod|istio-pilot)(-.*)?\"})) * 0 + -1))), \"workload\", \"$1\", \"deployment\", \"(.+)\"))\nor (label_replace((((((max by (cluster,namespace,statefulset) (kube_statefulset_status_replicas_ready{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"(istiod|istio-pilot)(-.*)?\"}) == 0) and on (cluster,namespace,statefulset) (((max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"(istiod|istio-pilot)(-.*)?\"})) > 0))) * 0 + 2))\nor (((((max by (cluster,namespace,statefulset) (kube_statefulset_status_replicas_ready{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"(istiod|istio-pilot)(-.*)?\"}) < max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"(istiod|istio-pilot)(-.*)?\"})) and on (cluster,namespace,statefulset) (max by (cluster,namespace,statefulset) (kube_statefulset_status_replicas_ready{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"(istiod|istio-pilot)(-.*)?\"}) > 0))\nor ((max by (cluster,namespace,statefulset) (kube_statefulset_status_replicas_updated{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"(istiod|istio-pilot)(-.*)?\"}) < max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"(istiod|istio-pilot)(-.*)?\"})) and on (cluster,namespace,statefulset) (((max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"(istiod|istio-pilot)(-.*)?\"})) > 0)))\nor (max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"(istiod|istio-pilot)(-.*)?\"}) == 0)) * 0 + 1))\nor (((((max by (cluster,namespace,statefulset) (kube_statefulset_status_replicas_ready{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"(istiod|istio-pilot)(-.*)?\"}) >= max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"(istiod|istio-pilot)(-.*)?\"})) and on (cluster,namespace,statefulset) (max by (cluster,namespace,statefulset) (kube_statefulset_status_replicas_updated{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"(istiod|istio-pilot)(-.*)?\"}) >= max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"(istiod|istio-pilot)(-.*)?\"}))) and on (cluster,namespace,statefulset) (((max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"(istiod|istio-pilot)(-.*)?\"})) > 0))) * 0 + 0))\nor (((max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"(istiod|istio-pilot)(-.*)?\"})) * 0 + -1))), \"workload\", \"$1\", \"statefulset\", \"(.+)\"))\nor (label_replace((((((max by (cluster,namespace,daemonset) (kube_daemonset_status_number_available{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"(istiod|istio-pilot)(-.*)?\"}) == 0) and on (cluster,namespace,daemonset) (((max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"(istiod|istio-pilot)(-.*)?\"})) > 0))) * 0 + 2))\nor (((((max by (cluster,namespace,daemonset) (kube_daemonset_status_number_available{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"(istiod|istio-pilot)(-.*)?\"}) < max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"(istiod|istio-pilot)(-.*)?\"})) and on (cluster,namespace,daemonset) (max by (cluster,namespace,daemonset) (kube_daemonset_status_number_available{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"(istiod|istio-pilot)(-.*)?\"}) > 0))\nor ((max by (cluster,namespace,daemonset) (kube_daemonset_status_updated_number_scheduled{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"(istiod|istio-pilot)(-.*)?\"}) < max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"(istiod|istio-pilot)(-.*)?\"})) and on (cluster,namespace,daemonset) (((max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"(istiod|istio-pilot)(-.*)?\"})) > 0)))\nor (max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"(istiod|istio-pilot)(-.*)?\"}) == 0)) * 0 + 1))\nor (((((max by (cluster,namespace,daemonset) (kube_daemonset_status_number_available{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"(istiod|istio-pilot)(-.*)?\"}) >= max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"(istiod|istio-pilot)(-.*)?\"})) and on (cluster,namespace,daemonset) (max by (cluster,namespace,daemonset) (kube_daemonset_status_updated_number_scheduled{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"(istiod|istio-pilot)(-.*)?\"}) >= max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"(istiod|istio-pilot)(-.*)?\"}))) and on (cluster,namespace,daemonset) (((max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"(istiod|istio-pilot)(-.*)?\"})) > 0))) * 0 + 0))\nor (((max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${istio_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"(istiod|istio-pilot)(-.*)?\"})) * 0 + -1))), \"workload\", \"$1\", \"daemonset\", \"(.+)\")))\nor vector(-1)",
           "format": "time_series",
           "instant": true,
           "range": false,
-          "legendFormat": "{{namespace}} / {{deployment}}"
+          "legendFormat": "Istiod"
         }
       ],
       "options": {
@@ -1447,7 +1503,7 @@
           "values": true,
           "limit": 1000
         },
-        "textMode": "value_and_name",
+        "textMode": "value",
         "wideLayout": false
       },
       "fieldConfig": {
@@ -1511,18 +1567,18 @@
     },
     {
       "type": "stat",
-      "id": 16,
-      "title": "StatefulSet",
-      "description": "Красный — нет Ready-реплик при desired > 0. Жёлтый — часть реплик готова, обновление или scale-to-zero.",
+      "id": 32,
+      "title": "Istio Ingress Gateway",
+      "description": "Готовность workload входного шлюза. Имена и namespace шлюзов задаются переменными Gateway namespaces и Ingress workloads.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
-        "x": 0,
-        "y": 17,
-        "w": 12,
-        "h": 6
+        "x": 6,
+        "y": 10,
+        "w": 6,
+        "h": 4
       },
       "targets": [
         {
@@ -1532,11 +1588,11 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "((((((max by (cluster,namespace,statefulset) (kube_statefulset_status_replicas_ready{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) == 0) and on (cluster,namespace,statefulset) (((max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) > 0))) * 0 + 2))\nor (((((max by (cluster,namespace,statefulset) (kube_statefulset_status_replicas_ready{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) < max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) and on (cluster,namespace,statefulset) (max by (cluster,namespace,statefulset) (kube_statefulset_status_replicas_ready{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) > 0))\nor ((max by (cluster,namespace,statefulset) (kube_statefulset_status_replicas_updated{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) < max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) and on (cluster,namespace,statefulset) (((max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) > 0)))\nor (max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) == 0)) * 0 + 1))\nor (((((max by (cluster,namespace,statefulset) (kube_statefulset_status_replicas_ready{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) >= max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) and on (cluster,namespace,statefulset) (max by (cluster,namespace,statefulset) (kube_statefulset_status_replicas_updated{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) >= max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}))) and on (cluster,namespace,statefulset) (((max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) > 0))) * 0 + 0))\nor (((max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) * 0 + -1))))\nor on () (label_replace(label_replace(vector(-1), \"namespace\", \"—\", \"__name__\", \".*\"), \"statefulset\", \"—\", \"__name__\", \".*\"))",
+          "expr": "max ((label_replace(((((((max by (cluster,namespace,deployment) (kube_deployment_status_replicas_available{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${ingress_gateway:raw}\"}) == 0) and on (cluster,namespace,deployment) (((max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${ingress_gateway:raw}\"})) > 0)))\nor ((max by (cluster,namespace,deployment) (kube_deployment_status_condition{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${ingress_gateway:raw}\",condition=\"Progressing\",status=\"false\",reason=\"ProgressDeadlineExceeded\"}) == 1) and on (cluster,namespace,deployment) (((max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${ingress_gateway:raw}\"})) > 0)))) * 0 + 2))\nor ((((((max by (cluster,namespace,deployment) (kube_deployment_status_replicas_available{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${ingress_gateway:raw}\"}) < max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${ingress_gateway:raw}\"})) and on (cluster,namespace,deployment) (max by (cluster,namespace,deployment) (kube_deployment_status_replicas_available{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${ingress_gateway:raw}\"}) > 0))\nor ((max by (cluster,namespace,deployment) (kube_deployment_status_replicas_updated{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${ingress_gateway:raw}\"}) < max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${ingress_gateway:raw}\"})) and on (cluster,namespace,deployment) (((max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${ingress_gateway:raw}\"})) > 0)))\nor (max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${ingress_gateway:raw}\"}) == 0))\nor (max by (cluster,namespace,deployment) (kube_deployment_status_observed_generation{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${ingress_gateway:raw}\"}) < max by (cluster,namespace,deployment) (kube_deployment_metadata_generation{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${ingress_gateway:raw}\"}))) * 0 + 1))\nor (((((max by (cluster,namespace,deployment) (kube_deployment_status_replicas_available{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${ingress_gateway:raw}\"}) >= max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${ingress_gateway:raw}\"})) and on (cluster,namespace,deployment) (max by (cluster,namespace,deployment) (kube_deployment_status_replicas_updated{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${ingress_gateway:raw}\"}) >= max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${ingress_gateway:raw}\"}))) and on (cluster,namespace,deployment) (((max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${ingress_gateway:raw}\"})) > 0))) * 0 + 0))\nor (((max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${ingress_gateway:raw}\"})) * 0 + -1))), \"workload\", \"$1\", \"deployment\", \"(.+)\"))\nor (label_replace((((((max by (cluster,namespace,statefulset) (kube_statefulset_status_replicas_ready{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"${ingress_gateway:raw}\"}) == 0) and on (cluster,namespace,statefulset) (((max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"${ingress_gateway:raw}\"})) > 0))) * 0 + 2))\nor (((((max by (cluster,namespace,statefulset) (kube_statefulset_status_replicas_ready{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"${ingress_gateway:raw}\"}) < max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"${ingress_gateway:raw}\"})) and on (cluster,namespace,statefulset) (max by (cluster,namespace,statefulset) (kube_statefulset_status_replicas_ready{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"${ingress_gateway:raw}\"}) > 0))\nor ((max by (cluster,namespace,statefulset) (kube_statefulset_status_replicas_updated{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"${ingress_gateway:raw}\"}) < max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"${ingress_gateway:raw}\"})) and on (cluster,namespace,statefulset) (((max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"${ingress_gateway:raw}\"})) > 0)))\nor (max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"${ingress_gateway:raw}\"}) == 0)) * 0 + 1))\nor (((((max by (cluster,namespace,statefulset) (kube_statefulset_status_replicas_ready{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"${ingress_gateway:raw}\"}) >= max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"${ingress_gateway:raw}\"})) and on (cluster,namespace,statefulset) (max by (cluster,namespace,statefulset) (kube_statefulset_status_replicas_updated{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"${ingress_gateway:raw}\"}) >= max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"${ingress_gateway:raw}\"}))) and on (cluster,namespace,statefulset) (((max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"${ingress_gateway:raw}\"})) > 0))) * 0 + 0))\nor (((max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"${ingress_gateway:raw}\"})) * 0 + -1))), \"workload\", \"$1\", \"statefulset\", \"(.+)\"))\nor (label_replace((((((max by (cluster,namespace,daemonset) (kube_daemonset_status_number_available{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"${ingress_gateway:raw}\"}) == 0) and on (cluster,namespace,daemonset) (((max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"${ingress_gateway:raw}\"})) > 0))) * 0 + 2))\nor (((((max by (cluster,namespace,daemonset) (kube_daemonset_status_number_available{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"${ingress_gateway:raw}\"}) < max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"${ingress_gateway:raw}\"})) and on (cluster,namespace,daemonset) (max by (cluster,namespace,daemonset) (kube_daemonset_status_number_available{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"${ingress_gateway:raw}\"}) > 0))\nor ((max by (cluster,namespace,daemonset) (kube_daemonset_status_updated_number_scheduled{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"${ingress_gateway:raw}\"}) < max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"${ingress_gateway:raw}\"})) and on (cluster,namespace,daemonset) (((max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"${ingress_gateway:raw}\"})) > 0)))\nor (max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"${ingress_gateway:raw}\"}) == 0)) * 0 + 1))\nor (((((max by (cluster,namespace,daemonset) (kube_daemonset_status_number_available{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"${ingress_gateway:raw}\"}) >= max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"${ingress_gateway:raw}\"})) and on (cluster,namespace,daemonset) (max by (cluster,namespace,daemonset) (kube_daemonset_status_updated_number_scheduled{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"${ingress_gateway:raw}\"}) >= max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"${ingress_gateway:raw}\"}))) and on (cluster,namespace,daemonset) (((max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"${ingress_gateway:raw}\"})) > 0))) * 0 + 0))\nor (((max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"${ingress_gateway:raw}\"})) * 0 + -1))), \"workload\", \"$1\", \"daemonset\", \"(.+)\")))\nor vector(-1)",
           "format": "time_series",
           "instant": true,
           "range": false,
-          "legendFormat": "{{namespace}} / {{statefulset}}"
+          "legendFormat": "Istio Ingress Gateway"
         }
       ],
       "options": {
@@ -1552,7 +1608,7 @@
           "values": true,
           "limit": 1000
         },
-        "textMode": "value_and_name",
+        "textMode": "value",
         "wideLayout": false
       },
       "fieldConfig": {
@@ -1616,18 +1672,18 @@
     },
     {
       "type": "stat",
-      "id": 17,
-      "title": "DaemonSet",
-      "description": "Красный — нет доступных Pod при desired > 0. Жёлтый — частичная доступность, rollout или нет подходящих нод.",
+      "id": 33,
+      "title": "Istio Egress Gateway",
+      "description": "Готовность workload исходящего шлюза. Выберите namespace и, если нужно, измените регулярное выражение Egress workloads.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
         "x": 12,
-        "y": 17,
-        "w": 12,
-        "h": 6
+        "y": 10,
+        "w": 6,
+        "h": 4
       },
       "targets": [
         {
@@ -1637,11 +1693,11 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "((((((max by (cluster,namespace,daemonset) (kube_daemonset_status_number_available{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) == 0) and on (cluster,namespace,daemonset) (((max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) > 0))) * 0 + 2))\nor (((((max by (cluster,namespace,daemonset) (kube_daemonset_status_number_available{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) < max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) and on (cluster,namespace,daemonset) (max by (cluster,namespace,daemonset) (kube_daemonset_status_number_available{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) > 0))\nor ((max by (cluster,namespace,daemonset) (kube_daemonset_status_updated_number_scheduled{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) < max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) and on (cluster,namespace,daemonset) (((max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) > 0)))\nor (max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) == 0)) * 0 + 1))\nor (((((max by (cluster,namespace,daemonset) (kube_daemonset_status_number_available{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) >= max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) and on (cluster,namespace,daemonset) (max by (cluster,namespace,daemonset) (kube_daemonset_status_updated_number_scheduled{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) >= max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}))) and on (cluster,namespace,daemonset) (((max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) > 0))) * 0 + 0))\nor (((max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) * 0 + -1))))\nor on () (label_replace(label_replace(vector(-1), \"namespace\", \"—\", \"__name__\", \".*\"), \"daemonset\", \"—\", \"__name__\", \".*\"))",
+          "expr": "max ((label_replace(((((((max by (cluster,namespace,deployment) (kube_deployment_status_replicas_available{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${egress_gateway:raw}\"}) == 0) and on (cluster,namespace,deployment) (((max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${egress_gateway:raw}\"})) > 0)))\nor ((max by (cluster,namespace,deployment) (kube_deployment_status_condition{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${egress_gateway:raw}\",condition=\"Progressing\",status=\"false\",reason=\"ProgressDeadlineExceeded\"}) == 1) and on (cluster,namespace,deployment) (((max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${egress_gateway:raw}\"})) > 0)))) * 0 + 2))\nor ((((((max by (cluster,namespace,deployment) (kube_deployment_status_replicas_available{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${egress_gateway:raw}\"}) < max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${egress_gateway:raw}\"})) and on (cluster,namespace,deployment) (max by (cluster,namespace,deployment) (kube_deployment_status_replicas_available{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${egress_gateway:raw}\"}) > 0))\nor ((max by (cluster,namespace,deployment) (kube_deployment_status_replicas_updated{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${egress_gateway:raw}\"}) < max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${egress_gateway:raw}\"})) and on (cluster,namespace,deployment) (((max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${egress_gateway:raw}\"})) > 0)))\nor (max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${egress_gateway:raw}\"}) == 0))\nor (max by (cluster,namespace,deployment) (kube_deployment_status_observed_generation{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${egress_gateway:raw}\"}) < max by (cluster,namespace,deployment) (kube_deployment_metadata_generation{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${egress_gateway:raw}\"}))) * 0 + 1))\nor (((((max by (cluster,namespace,deployment) (kube_deployment_status_replicas_available{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${egress_gateway:raw}\"}) >= max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${egress_gateway:raw}\"})) and on (cluster,namespace,deployment) (max by (cluster,namespace,deployment) (kube_deployment_status_replicas_updated{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${egress_gateway:raw}\"}) >= max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${egress_gateway:raw}\"}))) and on (cluster,namespace,deployment) (((max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${egress_gateway:raw}\"})) > 0))) * 0 + 0))\nor (((max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",deployment=~\"${egress_gateway:raw}\"})) * 0 + -1))), \"workload\", \"$1\", \"deployment\", \"(.+)\"))\nor (label_replace((((((max by (cluster,namespace,statefulset) (kube_statefulset_status_replicas_ready{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"${egress_gateway:raw}\"}) == 0) and on (cluster,namespace,statefulset) (((max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"${egress_gateway:raw}\"})) > 0))) * 0 + 2))\nor (((((max by (cluster,namespace,statefulset) (kube_statefulset_status_replicas_ready{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"${egress_gateway:raw}\"}) < max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"${egress_gateway:raw}\"})) and on (cluster,namespace,statefulset) (max by (cluster,namespace,statefulset) (kube_statefulset_status_replicas_ready{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"${egress_gateway:raw}\"}) > 0))\nor ((max by (cluster,namespace,statefulset) (kube_statefulset_status_replicas_updated{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"${egress_gateway:raw}\"}) < max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"${egress_gateway:raw}\"})) and on (cluster,namespace,statefulset) (((max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"${egress_gateway:raw}\"})) > 0)))\nor (max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"${egress_gateway:raw}\"}) == 0)) * 0 + 1))\nor (((((max by (cluster,namespace,statefulset) (kube_statefulset_status_replicas_ready{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"${egress_gateway:raw}\"}) >= max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"${egress_gateway:raw}\"})) and on (cluster,namespace,statefulset) (max by (cluster,namespace,statefulset) (kube_statefulset_status_replicas_updated{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"${egress_gateway:raw}\"}) >= max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"${egress_gateway:raw}\"}))) and on (cluster,namespace,statefulset) (((max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"${egress_gateway:raw}\"})) > 0))) * 0 + 0))\nor (((max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",statefulset=~\"${egress_gateway:raw}\"})) * 0 + -1))), \"workload\", \"$1\", \"statefulset\", \"(.+)\"))\nor (label_replace((((((max by (cluster,namespace,daemonset) (kube_daemonset_status_number_available{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"${egress_gateway:raw}\"}) == 0) and on (cluster,namespace,daemonset) (((max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"${egress_gateway:raw}\"})) > 0))) * 0 + 2))\nor (((((max by (cluster,namespace,daemonset) (kube_daemonset_status_number_available{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"${egress_gateway:raw}\"}) < max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"${egress_gateway:raw}\"})) and on (cluster,namespace,daemonset) (max by (cluster,namespace,daemonset) (kube_daemonset_status_number_available{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"${egress_gateway:raw}\"}) > 0))\nor ((max by (cluster,namespace,daemonset) (kube_daemonset_status_updated_number_scheduled{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"${egress_gateway:raw}\"}) < max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"${egress_gateway:raw}\"})) and on (cluster,namespace,daemonset) (((max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"${egress_gateway:raw}\"})) > 0)))\nor (max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"${egress_gateway:raw}\"}) == 0)) * 0 + 1))\nor (((((max by (cluster,namespace,daemonset) (kube_daemonset_status_number_available{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"${egress_gateway:raw}\"}) >= max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"${egress_gateway:raw}\"})) and on (cluster,namespace,daemonset) (max by (cluster,namespace,daemonset) (kube_daemonset_status_updated_number_scheduled{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"${egress_gateway:raw}\"}) >= max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"${egress_gateway:raw}\"}))) and on (cluster,namespace,daemonset) (((max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"${egress_gateway:raw}\"})) > 0))) * 0 + 0))\nor (((max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${gateway_ns:raw}\",cluster=~\"${cluster:raw}\",daemonset=~\"${egress_gateway:raw}\"})) * 0 + -1))), \"workload\", \"$1\", \"daemonset\", \"(.+)\")))\nor vector(-1)",
           "format": "time_series",
           "instant": true,
           "range": false,
-          "legendFormat": "{{namespace}} / {{daemonset}}"
+          "legendFormat": "Istio Egress Gateway"
         }
       ],
       "options": {
@@ -1657,7 +1713,7 @@
           "values": true,
           "limit": 1000
         },
-        "textMode": "value_and_name",
+        "textMode": "value",
         "wideLayout": false
       },
       "fieldConfig": {
@@ -1721,18 +1777,123 @@
     },
     {
       "type": "stat",
-      "id": 18,
-      "title": "Pod",
-      "description": "Красный — Failed или критическая ошибка контейнера. Жёлтый — Pending, Unknown, NotReady, удаление или рестарты за 15 минут. Завершённые успешно Pod — зелёные.",
+      "id": 34,
+      "title": "Envoy / istio-proxy",
+      "description": "Проверяет Ready у istio-proxy в активных Pod выбранных namespace. Красный, если все видимые прокси не Ready. Жёлтый, если готова часть. Pod в процессе удаления исключаются при наличии метрики удаления.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 10,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "(2 - min(((max by (cluster,namespace,pod) ((kube_pod_container_status_ready{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",container=\"istio-proxy\"})\nor (kube_pod_init_container_status_ready{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",container=\"istio-proxy\"}))) and on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_status_phase{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",phase=~\"Running|Pending\"}) == 1)) unless on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_deletion_timestamp{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) > 0)) - max(((max by (cluster,namespace,pod) ((kube_pod_container_status_ready{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",container=\"istio-proxy\"})\nor (kube_pod_init_container_status_ready{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",container=\"istio-proxy\"}))) and on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_status_phase{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",phase=~\"Running|Pending\"}) == 1)) unless on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_deletion_timestamp{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) > 0)))\nor (vector(-1))",
+          "format": "time_series",
+          "instant": true,
+          "range": false,
+          "legendFormat": "Envoy / istio-proxy"
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true,
+          "limit": 1000
+        },
+        "textMode": "value",
+        "wideLayout": false
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "НЕТ ДАННЫХ",
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              },
+              {
+                "value": 0,
+                "color": "#238044"
+              },
+              {
+                "value": 1,
+                "color": "#B58106"
+              },
+              {
+                "value": 2,
+                "color": "#BA3438"
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "OK",
+                  "color": "#238044",
+                  "index": 1
+                },
+                "1": {
+                  "text": "ВНИМАНИЕ",
+                  "color": "#B58106",
+                  "index": 2
+                },
+                "2": {
+                  "text": "КРИТИЧНО",
+                  "color": "#BA3438",
+                  "index": 3
+                },
+                "-1": {
+                  "text": "НЕТ ДАННЫХ",
+                  "color": "#687385",
+                  "index": 0
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "id": 35,
+      "title": "Istio · входящие HTTP 5xx",
+      "description": "Доля HTTP 5xx за 5 минут. Жёлтый от 1%, красный от 5%. Если пришло меньше 20 HTTP-ответов или метрик нет, плитка серая.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
         "x": 0,
-        "y": 23,
-        "w": 24,
-        "h": 12
+        "y": 14,
+        "w": 6,
+        "h": 4
       },
       "targets": [
         {
@@ -1742,11 +1903,11 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "(((((max by (cluster,namespace,pod) (kube_pod_status_phase{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",phase=~\"Failed\"}) == 1) * 0 + 2))\nor (((max by (cluster,namespace,pod) (kube_pod_status_phase{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",phase=~\"Succeeded\"}) == 1) * 0 + 0))\nor ((((max by (cluster,namespace,pod) (kube_pod_deletion_timestamp{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) > 0) and on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_status_phase{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",phase=~\"Pending|Running|Unknown\"}) == 1)) * 0 + 1))\nor (((((max by (cluster,namespace,pod) (kube_pod_container_status_waiting_reason{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",reason=~\"CrashLoopBackOff|ImagePullBackOff|ErrImagePull|CreateContainerConfigError|CreateContainerError|RunContainerError|InvalidImageName\"}) == 1)\nor (max by (cluster,namespace,pod) (kube_pod_init_container_status_waiting_reason{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",reason=~\"CrashLoopBackOff|ImagePullBackOff|ErrImagePull|CreateContainerConfigError|CreateContainerError|RunContainerError|InvalidImageName\"}) == 1)) and on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_status_phase{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",phase=~\"Pending|Running|Unknown\"}) == 1)) * 0 + 2))\nor (((((max by (cluster,namespace,pod) (kube_pod_status_phase{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",phase=~\"Pending|Unknown\"}) == 1)\nor (max by (cluster,namespace,pod) (kube_pod_status_ready{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",condition=~\"false|unknown\"}) == 1)\nor (max by (cluster,namespace,pod) (increase(kube_pod_container_status_restarts_total{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}[15m])) > 0)) and on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_status_phase{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",phase=~\"Pending|Running|Unknown\"}) == 1)) * 0 + 1))\nor ((((max by (cluster,namespace,pod) (kube_pod_status_ready{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",condition=\"true\"}) == 1) and on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_status_phase{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",phase=~\"Running\"}) == 1)) * 0 + 0))\nor (((max by (cluster,namespace,pod) (kube_pod_info{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) * 0 + -1))))\nor on () (label_replace(label_replace(vector(-1), \"namespace\", \"—\", \"__name__\", \".*\"), \"pod\", \"—\", \"__name__\", \".*\"))",
+          "expr": "(100 * ((sum(increase(istio_requests_total{cluster=~\"${cluster:raw}\",destination_workload_namespace=~\"${namespace:regex}\",reporter=\"destination\",response_code=~\"5[0-9][0-9]\"}[5m])))\nor (vector(0))) / (sum(increase(istio_requests_total{cluster=~\"${cluster:raw}\",destination_workload_namespace=~\"${namespace:regex}\",reporter=\"destination\",response_code=~\"[1-5][0-9][0-9]\"}[5m])) >= 20))\nor (vector(-1))",
           "format": "time_series",
           "instant": true,
           "range": false,
-          "legendFormat": "{{namespace}} / {{pod}}"
+          "legendFormat": "Istio · входящие HTTP 5xx"
         }
       ],
       "options": {
@@ -1762,7 +1923,7 @@
           "values": true,
           "limit": 1000
         },
-        "textMode": "value_and_name",
+        "textMode": "value",
         "wideLayout": false
       },
       "fieldConfig": {
@@ -1771,7 +1932,7 @@
           "color": {
             "mode": "thresholds"
           },
-          "decimals": 0,
+          "decimals": 1,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -1788,7 +1949,7 @@
                 "color": "#B58106"
               },
               {
-                "value": 2,
+                "value": 5,
                 "color": "#BA3438"
               }
             ]
@@ -1797,60 +1958,33 @@
             {
               "type": "value",
               "options": {
-                "0": {
-                  "text": "OK",
-                  "color": "#238044",
-                  "index": 1
-                },
-                "1": {
-                  "text": "ВНИМАНИЕ",
-                  "color": "#B58106",
-                  "index": 2
-                },
-                "2": {
-                  "text": "КРИТИЧНО",
-                  "color": "#BA3438",
-                  "index": 3
-                },
                 "-1": {
-                  "text": "НЕТ ДАННЫХ",
+                  "text": "МАЛО ДАННЫХ",
                   "color": "#687385",
                   "index": 0
                 }
               }
             }
-          ]
+          ],
+          "unit": "percent"
         },
         "overrides": []
       }
     },
     {
-      "type": "row",
-      "id": 19,
-      "title": "Хранилище · PVC",
-      "collapsed": false,
-      "panels": [],
-      "gridPos": {
-        "x": 0,
-        "y": 35,
-        "w": 24,
-        "h": 1
-      }
-    },
-    {
       "type": "stat",
-      "id": 20,
-      "title": "Фаза PVC",
-      "description": "Bound — зелёный. Pending или удаление — жёлтый. Lost или удаление дольше 5 минут — красный при наличии метрики удаления.",
+      "id": 36,
+      "title": "Istio · исходящие HTTP 5xx",
+      "description": "Доля HTTP 5xx за 5 минут. Жёлтый от 1%, красный от 5%. Если пришло меньше 20 HTTP-ответов или метрик нет, плитка серая.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
-        "x": 0,
-        "y": 36,
-        "w": 12,
-        "h": 7
+        "x": 6,
+        "y": 14,
+        "w": 6,
+        "h": 4
       },
       "targets": [
         {
@@ -1860,11 +1994,11 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "((((((max by (cluster,namespace,persistentvolumeclaim) (kube_persistentvolumeclaim_status_phase{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",phase=\"Lost\"}) == 1)\nor ((time() - max by (cluster,namespace,persistentvolumeclaim) (kube_persistentvolumeclaim_deletion_timestamp{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) > 300)) * 0 + 2))\nor ((((max by (cluster,namespace,persistentvolumeclaim) (kube_persistentvolumeclaim_status_phase{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",phase=\"Pending\"}) == 1)\nor (max by (cluster,namespace,persistentvolumeclaim) (kube_persistentvolumeclaim_deletion_timestamp{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) > 0)) * 0 + 1))\nor (((max by (cluster,namespace,persistentvolumeclaim) (kube_persistentvolumeclaim_status_phase{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",phase=\"Bound\"}) == 1) * 0 + 0))\nor (((max by (cluster,namespace,persistentvolumeclaim) (kube_persistentvolumeclaim_info{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) * 0 + -1))))\nor on () (label_replace(label_replace(vector(-1), \"namespace\", \"—\", \"__name__\", \".*\"), \"persistentvolumeclaim\", \"—\", \"__name__\", \".*\"))",
+          "expr": "(100 * ((sum(increase(istio_requests_total{cluster=~\"${cluster:raw}\",source_workload_namespace=~\"${namespace:regex}\",reporter=\"source\",response_code=~\"5[0-9][0-9]\"}[5m])))\nor (vector(0))) / (sum(increase(istio_requests_total{cluster=~\"${cluster:raw}\",source_workload_namespace=~\"${namespace:regex}\",reporter=\"source\",response_code=~\"[1-5][0-9][0-9]\"}[5m])) >= 20))\nor (vector(-1))",
           "format": "time_series",
           "instant": true,
           "range": false,
-          "legendFormat": "{{namespace}} / {{persistentvolumeclaim}}"
+          "legendFormat": "Istio · исходящие HTTP 5xx"
         }
       ],
       "options": {
@@ -1880,7 +2014,7 @@
           "values": true,
           "limit": 1000
         },
-        "textMode": "value_and_name",
+        "textMode": "value",
         "wideLayout": false
       },
       "fieldConfig": {
@@ -1889,7 +2023,7 @@
           "color": {
             "mode": "thresholds"
           },
-          "decimals": 0,
+          "decimals": 1,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -1906,7 +2040,7 @@
                 "color": "#B58106"
               },
               {
-                "value": 2,
+                "value": 5,
                 "color": "#BA3438"
               }
             ]
@@ -1915,47 +2049,33 @@
             {
               "type": "value",
               "options": {
-                "0": {
-                  "text": "OK",
-                  "color": "#238044",
-                  "index": 1
-                },
-                "1": {
-                  "text": "ВНИМАНИЕ",
-                  "color": "#B58106",
-                  "index": 2
-                },
-                "2": {
-                  "text": "КРИТИЧНО",
-                  "color": "#BA3438",
-                  "index": 3
-                },
                 "-1": {
-                  "text": "НЕТ ДАННЫХ",
+                  "text": "МАЛО ДАННЫХ",
                   "color": "#687385",
                   "index": 0
                 }
               }
             }
-          ]
+          ],
+          "unit": "percent"
         },
         "overrides": []
       }
     },
     {
       "type": "stat",
-      "id": 21,
-      "title": "Заполнение PVC",
-      "description": "Заполненность файловой системы по kubelet_volume_stats. Жёлтый от 80%, красный от 90%. Серый для PVC без статистики, например для части CSI-драйверов.",
+      "id": 37,
+      "title": "Istiod · xDS / Config",
+      "description": "Красный при отклонённых xDS-ответах или конфигурациях за 10 минут. Если счётчики ещё не видны, зелёный возможен при наличии метрики pilot_xds. Без Istiod-метрик плитка серая. Проверка относится к общему control plane.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
         "x": 12,
-        "y": 36,
-        "w": 12,
-        "h": 7
+        "y": 14,
+        "w": 6,
+        "h": 4
       },
       "targets": [
         {
@@ -1965,11 +2085,11 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "((((max by (cluster,namespace,persistentvolumeclaim) (100 * kubelet_volume_stats_used_bytes{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"} / (kubelet_volume_stats_capacity_bytes{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"} > 0))) and on (cluster,namespace,persistentvolumeclaim) (max by (cluster,namespace,persistentvolumeclaim) (kube_persistentvolumeclaim_info{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})))\nor (((max by (cluster,namespace,persistentvolumeclaim) (kube_persistentvolumeclaim_info{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) * 0 + -1))))\nor on () (label_replace(label_replace(vector(-1), \"namespace\", \"—\", \"__name__\", \".*\"), \"persistentvolumeclaim\", \"—\", \"__name__\", \".*\"))",
+          "expr": "((max((label_replace((sum((increase(pilot_total_xds_rejects{cluster=~\"${cluster:raw}\",namespace=~\"${istio_ns:raw}\"}[10m]))\nor (increase(pilot_total_xds_rejects{cluster=~\"${cluster:raw}\",kubernetes_namespace=~\"${istio_ns:raw}\"}[10m])))), \"event\", \"xds\", \"__name__\", \".*\"))\nor (label_replace((sum((increase(pilot_total_rejected_configs{cluster=~\"${cluster:raw}\",namespace=~\"${istio_ns:raw}\"}[10m]))\nor (increase(pilot_total_rejected_configs{cluster=~\"${cluster:raw}\",kubernetes_namespace=~\"${istio_ns:raw}\"}[10m])))), \"event\", \"config\", \"__name__\", \".*\"))) > 0) * 0 + 2)\nor ((max((label_replace((sum((increase(pilot_total_xds_rejects{cluster=~\"${cluster:raw}\",namespace=~\"${istio_ns:raw}\"}[10m]))\nor (increase(pilot_total_xds_rejects{cluster=~\"${cluster:raw}\",kubernetes_namespace=~\"${istio_ns:raw}\"}[10m])))), \"event\", \"xds\", \"__name__\", \".*\"))\nor (label_replace((sum((increase(pilot_total_rejected_configs{cluster=~\"${cluster:raw}\",namespace=~\"${istio_ns:raw}\"}[10m]))\nor (increase(pilot_total_rejected_configs{cluster=~\"${cluster:raw}\",kubernetes_namespace=~\"${istio_ns:raw}\"}[10m])))), \"event\", \"config\", \"__name__\", \".*\"))) == 0) * 0)\nor (count((pilot_xds{cluster=~\"${cluster:raw}\",namespace=~\"${istio_ns:raw}\"})\nor (pilot_xds{cluster=~\"${cluster:raw}\",kubernetes_namespace=~\"${istio_ns:raw}\"})) * 0)\nor (vector(-1))",
           "format": "time_series",
           "instant": true,
           "range": false,
-          "legendFormat": "{{namespace}} / {{persistentvolumeclaim}}"
+          "legendFormat": "Istiod · xDS / Config"
         }
       ],
       "options": {
@@ -1985,218 +2105,7 @@
           "values": true,
           "limit": 1000
         },
-        "textMode": "value_and_name",
-        "wideLayout": false
-      },
-      "fieldConfig": {
-        "defaults": {
-          "noValue": "НЕТ ДАННЫХ",
-          "color": {
-            "mode": "thresholds"
-          },
-          "decimals": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "value": null,
-                "color": "#687385"
-              },
-              {
-                "value": 0,
-                "color": "#238044"
-              },
-              {
-                "value": 80,
-                "color": "#B58106"
-              },
-              {
-                "value": 90,
-                "color": "#BA3438"
-              }
-            ]
-          },
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "-1": {
-                  "text": "НЕТ МЕТРИКИ",
-                  "color": "#687385",
-                  "index": 0
-                }
-              }
-            }
-          ],
-          "unit": "percent",
-          "min": 0,
-          "max": 100
-        },
-        "overrides": []
-      }
-    },
-    {
-      "type": "row",
-      "id": 22,
-      "title": "Сеть · Service, Ingress и HTTP",
-      "collapsed": false,
-      "panels": [],
-      "gridPos": {
-        "x": 0,
-        "y": 43,
-        "w": 24,
-        "h": 1
-      }
-    },
-    {
-      "type": "stat",
-      "id": 23,
-      "title": "Service · Ready endpoints",
-      "description": "Зелёный — есть Ready endpoint. Красный — объект endpoint обнаружен, Ready-адресов нет. Серый — ExternalName или отсутствует телеметрия. EndpointSlice требует allowlist метки kubernetes.io/service-name в kube-state-metrics.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 44,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "editorMode": "code",
-          "expr": "(((((max by (cluster,namespace,service) (kube_service_spec_type{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",type=\"ExternalName\"}) == 1) * 0 + -1))\nor ((((max by (cluster,namespace,service) (max by (cluster,namespace,endpointslice) (kube_endpointslice_endpoints{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",ready=\"true\",terminating!=\"true\"}) * on (cluster,namespace,endpointslice) group_left (service) (max by (cluster,namespace,endpointslice,service) (label_replace(kube_endpointslice_labels{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",label_kubernetes_io_service_name!=\"\"}, \"service\", \"$1\", \"label_kubernetes_io_service_name\", \"(.+)\")))) > 0)\nor (max by (cluster,namespace,service) (label_replace(max by (cluster,namespace,endpoint) (kube_endpoint_address{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",ready=\"true\"}), \"service\", \"$1\", \"endpoint\", \"(.+)\")) > 0)\nor (max by (cluster,namespace,service) (label_replace(max by (cluster,namespace,endpoint) (kube_endpoint_address_available{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}), \"service\", \"$1\", \"endpoint\", \"(.+)\")) > 0)) * 0 + 0))\nor ((((max by (cluster,namespace,service) (max by (cluster,namespace,endpointslice,service) (label_replace(kube_endpointslice_labels{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",label_kubernetes_io_service_name!=\"\"}, \"service\", \"$1\", \"label_kubernetes_io_service_name\", \"(.+)\"))) > 0)\nor (max by (cluster,namespace,service) (label_replace(max by (cluster,namespace,endpoint) (kube_endpoint_address_available{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}), \"service\", \"$1\", \"endpoint\", \"(.+)\")) == 0)\nor (max by (cluster,namespace,service) (label_replace(max by (cluster,namespace,endpoint) (kube_endpoint_info{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}), \"service\", \"$1\", \"endpoint\", \"(.+)\")) and on (cluster,namespace) count by (cluster,namespace) (kube_endpoint_address{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}))) * 0 + 2))\nor (((max by (cluster,namespace,service) (kube_service_info{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) * 0 + -1))) and on (cluster,namespace,service) max by (cluster,namespace,service) (kube_service_info{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}))\nor on () (label_replace(label_replace(vector(-1), \"namespace\", \"—\", \"__name__\", \".*\"), \"service\", \"—\", \"__name__\", \".*\"))",
-          "format": "time_series",
-          "instant": true,
-          "range": false,
-          "legendFormat": "{{namespace}} / {{service}}"
-        }
-      ],
-      "options": {
-        "colorMode": "background_solid",
-        "graphMode": "none",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": true,
-          "limit": 1000
-        },
-        "textMode": "value_and_name",
-        "wideLayout": false
-      },
-      "fieldConfig": {
-        "defaults": {
-          "noValue": "НЕТ ДАННЫХ",
-          "color": {
-            "mode": "thresholds"
-          },
-          "decimals": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "value": null,
-                "color": "#687385"
-              },
-              {
-                "value": 0,
-                "color": "#238044"
-              },
-              {
-                "value": 1,
-                "color": "#B58106"
-              },
-              {
-                "value": 2,
-                "color": "#BA3438"
-              }
-            ]
-          },
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "OK",
-                  "color": "#238044",
-                  "index": 1
-                },
-                "1": {
-                  "text": "ВНИМАНИЕ",
-                  "color": "#B58106",
-                  "index": 2
-                },
-                "2": {
-                  "text": "КРИТИЧНО",
-                  "color": "#BA3438",
-                  "index": 3
-                },
-                "-1": {
-                  "text": "НЕТ ДАННЫХ",
-                  "color": "#687385",
-                  "index": 0
-                }
-              }
-            }
-          ]
-        },
-        "overrides": []
-      }
-    },
-    {
-      "type": "stat",
-      "id": 24,
-      "title": "Ingress · правила",
-      "description": "Зелёный — kube-state-metrics видит правило с путём. Серый возможен у Ingress только с defaultBackend. Доступность URL проверяется в соседней панели.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 44,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "editorMode": "code",
-          "expr": "(((((max by (cluster,namespace,ingress) (kube_ingress_path{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) * 0 + 0))\nor (((max by (cluster,namespace,ingress) (kube_ingress_info{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) * 0 + -1))))\nor on () (label_replace(label_replace(vector(-1), \"namespace\", \"—\", \"__name__\", \".*\"), \"ingress\", \"—\", \"__name__\", \".*\"))",
-          "format": "time_series",
-          "instant": true,
-          "range": false,
-          "legendFormat": "{{namespace}} / {{ingress}}"
-        }
-      ],
-      "options": {
-        "colorMode": "background_solid",
-        "graphMode": "none",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": true,
-          "limit": 1000
-        },
-        "textMode": "value_and_name",
+        "textMode": "value",
         "wideLayout": false
       },
       "fieldConfig": {
@@ -2268,9 +2177,9 @@
         "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
-        "x": 0,
-        "y": 51,
-        "w": 24,
+        "x": 18,
+        "y": 14,
+        "w": 6,
         "h": 4
       },
       "targets": [
@@ -2365,31 +2274,31 @@
     },
     {
       "type": "row",
-      "id": 26,
-      "title": "Kubernetes · фоновые задачи и доступность",
+      "id": 14,
+      "title": "Kubernetes · только красные",
       "collapsed": false,
       "panels": [],
       "gridPos": {
         "x": 0,
-        "y": 55,
+        "y": 18,
         "w": 24,
         "h": 1
       }
     },
     {
       "type": "stat",
-      "id": 27,
-      "title": "Job",
-      "description": "Красный — Job получил условие Failed. Жёлтый — Job ожидает запуска. Зелёный — выполняется или завершён успешно. Сохранившиеся старые Jobs тоже видны.",
+      "id": 15,
+      "title": "Ресурсы Kubernetes · красная зона",
+      "description": "Показываются только объекты с критическим статусом. Для PVC здесь учитывается фаза Lost или удаление дольше 5 минут. Для Job — терминальное условие Failed, в том числе у старых Jobs, пока их объекты существуют. Отсутствие проблем определяется по доступным метрикам.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
         "x": 0,
-        "y": 56,
-        "w": 12,
-        "h": 6
+        "y": 19,
+        "w": 16,
+        "h": 8
       },
       "targets": [
         {
@@ -2399,11 +2308,11 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "(((((max by (cluster,namespace,job_name) (kube_job_failed{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",condition=\"true\"}) == 1) * 0 + 2))\nor (((max by (cluster,namespace,job_name) (kube_job_complete{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",condition=\"true\"}) == 1) * 0 + 0))\nor (((max by (cluster,namespace,job_name) (kube_job_status_active{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) > 0) * 0 + 0))\nor (((max by (cluster,namespace,job_name) (kube_job_created{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) * 0 + 1))))\nor on () (label_replace(label_replace(vector(-1), \"namespace\", \"—\", \"__name__\", \".*\"), \"job_name\", \"—\", \"__name__\", \".*\"))",
+          "expr": "((label_replace((label_replace(((((((((max by (cluster,namespace,deployment) (kube_deployment_status_replicas_available{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) == 0) and on (cluster,namespace,deployment) (((max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) > 0)))\nor ((max by (cluster,namespace,deployment) (kube_deployment_status_condition{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",condition=\"Progressing\",status=\"false\",reason=\"ProgressDeadlineExceeded\"}) == 1) and on (cluster,namespace,deployment) (((max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) > 0)))) * 0 + 2))\nor ((((((max by (cluster,namespace,deployment) (kube_deployment_status_replicas_available{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) < max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) and on (cluster,namespace,deployment) (max by (cluster,namespace,deployment) (kube_deployment_status_replicas_available{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) > 0))\nor ((max by (cluster,namespace,deployment) (kube_deployment_status_replicas_updated{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) < max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) and on (cluster,namespace,deployment) (((max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) > 0)))\nor (max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) == 0))\nor (max by (cluster,namespace,deployment) (kube_deployment_status_observed_generation{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) < max by (cluster,namespace,deployment) (kube_deployment_metadata_generation{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}))) * 0 + 1))\nor (((((max by (cluster,namespace,deployment) (kube_deployment_status_replicas_available{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) >= max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) and on (cluster,namespace,deployment) (max by (cluster,namespace,deployment) (kube_deployment_status_replicas_updated{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) >= max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}))) and on (cluster,namespace,deployment) (((max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) > 0))) * 0 + 0))\nor (((max by (cluster,namespace,deployment) (kube_deployment_spec_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) * 0 + -1)))) == 2), \"resource\", \"$1\", \"deployment\", \"(.+)\")), \"kind\", \"Deployment\", \"__name__\", \".*\"))\nor (label_replace((label_replace((((((((max by (cluster,namespace,statefulset) (kube_statefulset_status_replicas_ready{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) == 0) and on (cluster,namespace,statefulset) (((max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) > 0))) * 0 + 2))\nor (((((max by (cluster,namespace,statefulset) (kube_statefulset_status_replicas_ready{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) < max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) and on (cluster,namespace,statefulset) (max by (cluster,namespace,statefulset) (kube_statefulset_status_replicas_ready{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) > 0))\nor ((max by (cluster,namespace,statefulset) (kube_statefulset_status_replicas_updated{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) < max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) and on (cluster,namespace,statefulset) (((max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) > 0)))\nor (max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) == 0)) * 0 + 1))\nor (((((max by (cluster,namespace,statefulset) (kube_statefulset_status_replicas_ready{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) >= max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) and on (cluster,namespace,statefulset) (max by (cluster,namespace,statefulset) (kube_statefulset_status_replicas_updated{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) >= max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}))) and on (cluster,namespace,statefulset) (((max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) > 0))) * 0 + 0))\nor (((max by (cluster,namespace,statefulset) (kube_statefulset_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) * 0 + -1)))) == 2), \"resource\", \"$1\", \"statefulset\", \"(.+)\")), \"kind\", \"StatefulSet\", \"__name__\", \".*\"))\nor (label_replace((label_replace((((((((max by (cluster,namespace,daemonset) (kube_daemonset_status_number_available{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) == 0) and on (cluster,namespace,daemonset) (((max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) > 0))) * 0 + 2))\nor (((((max by (cluster,namespace,daemonset) (kube_daemonset_status_number_available{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) < max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) and on (cluster,namespace,daemonset) (max by (cluster,namespace,daemonset) (kube_daemonset_status_number_available{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) > 0))\nor ((max by (cluster,namespace,daemonset) (kube_daemonset_status_updated_number_scheduled{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) < max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) and on (cluster,namespace,daemonset) (((max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) > 0)))\nor (max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) == 0)) * 0 + 1))\nor (((((max by (cluster,namespace,daemonset) (kube_daemonset_status_number_available{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) >= max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) and on (cluster,namespace,daemonset) (max by (cluster,namespace,daemonset) (kube_daemonset_status_updated_number_scheduled{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) >= max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}))) and on (cluster,namespace,daemonset) (((max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) > 0))) * 0 + 0))\nor (((max by (cluster,namespace,daemonset) (kube_daemonset_status_desired_number_scheduled{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) * 0 + -1)))) == 2), \"resource\", \"$1\", \"daemonset\", \"(.+)\")), \"kind\", \"DaemonSet\", \"__name__\", \".*\"))\nor (label_replace((label_replace(((((((max by (cluster,namespace,pod) (kube_pod_status_phase{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",phase=~\"Failed\"}) == 1) * 0 + 2))\nor (((max by (cluster,namespace,pod) (kube_pod_status_phase{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",phase=~\"Succeeded\"}) == 1) * 0 + 0))\nor ((((max by (cluster,namespace,pod) (kube_pod_deletion_timestamp{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) > 0) and on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_status_phase{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",phase=~\"Pending|Running|Unknown\"}) == 1)) * 0 + 1))\nor (((((max by (cluster,namespace,pod) (kube_pod_container_status_waiting_reason{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",reason=~\"CrashLoopBackOff|ImagePullBackOff|ErrImagePull|CreateContainerConfigError|CreateContainerError|RunContainerError|InvalidImageName\"}) == 1)\nor (max by (cluster,namespace,pod) (kube_pod_init_container_status_waiting_reason{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",reason=~\"CrashLoopBackOff|ImagePullBackOff|ErrImagePull|CreateContainerConfigError|CreateContainerError|RunContainerError|InvalidImageName\"}) == 1)) and on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_status_phase{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",phase=~\"Pending|Running|Unknown\"}) == 1)) * 0 + 2))\nor (((((max by (cluster,namespace,pod) (kube_pod_status_phase{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",phase=~\"Pending|Unknown\"}) == 1)\nor (max by (cluster,namespace,pod) (kube_pod_status_ready{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",condition=~\"false|unknown\"}) == 1)\nor (max by (cluster,namespace,pod) (increase(kube_pod_container_status_restarts_total{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}[15m])) > 0)) and on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_status_phase{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",phase=~\"Pending|Running|Unknown\"}) == 1)) * 0 + 1))\nor ((((max by (cluster,namespace,pod) (kube_pod_status_ready{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",condition=\"true\"}) == 1) and on (cluster,namespace,pod) (max by (cluster,namespace,pod) (kube_pod_status_phase{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",phase=~\"Running\"}) == 1)) * 0 + 0))\nor (((max by (cluster,namespace,pod) (kube_pod_info{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) * 0 + -1)))) == 2), \"resource\", \"$1\", \"pod\", \"(.+)\")), \"kind\", \"Pod\", \"__name__\", \".*\"))\nor (label_replace((label_replace((((((((max by (cluster,namespace,persistentvolumeclaim) (kube_persistentvolumeclaim_status_phase{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",phase=\"Lost\"}) == 1)\nor ((time() - max by (cluster,namespace,persistentvolumeclaim) (kube_persistentvolumeclaim_deletion_timestamp{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) > 300)) * 0 + 2))\nor ((((max by (cluster,namespace,persistentvolumeclaim) (kube_persistentvolumeclaim_status_phase{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",phase=\"Pending\"}) == 1)\nor (max by (cluster,namespace,persistentvolumeclaim) (kube_persistentvolumeclaim_deletion_timestamp{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) > 0)) * 0 + 1))\nor (((max by (cluster,namespace,persistentvolumeclaim) (kube_persistentvolumeclaim_status_phase{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",phase=\"Bound\"}) == 1) * 0 + 0))\nor (((max by (cluster,namespace,persistentvolumeclaim) (kube_persistentvolumeclaim_info{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) * 0 + -1)))) == 2), \"resource\", \"$1\", \"persistentvolumeclaim\", \"(.+)\")), \"kind\", \"PVC\", \"__name__\", \".*\"))\nor (label_replace((label_replace(((((((max by (cluster,namespace,service) (kube_service_spec_type{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",type=\"ExternalName\"}) == 1) * 0 + -1))\nor ((((max by (cluster,namespace,service) (max by (cluster,namespace,endpointslice) (kube_endpointslice_endpoints{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",ready=\"true\",terminating!=\"true\"}) * on (cluster,namespace,endpointslice) group_left (service) (max by (cluster,namespace,endpointslice,service) (label_replace(kube_endpointslice_labels{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",label_kubernetes_io_service_name!=\"\"}, \"service\", \"$1\", \"label_kubernetes_io_service_name\", \"(.+)\")))) > 0)\nor (max by (cluster,namespace,service) (label_replace(max by (cluster,namespace,endpoint) (kube_endpoint_address{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",ready=\"true\"}), \"service\", \"$1\", \"endpoint\", \"(.+)\")) > 0)\nor (max by (cluster,namespace,service) (label_replace(max by (cluster,namespace,endpoint) (kube_endpoint_address_available{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}), \"service\", \"$1\", \"endpoint\", \"(.+)\")) > 0)) * 0 + 0))\nor ((((max by (cluster,namespace,service) (max by (cluster,namespace,endpointslice,service) (label_replace(kube_endpointslice_labels{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",label_kubernetes_io_service_name!=\"\"}, \"service\", \"$1\", \"label_kubernetes_io_service_name\", \"(.+)\"))) > 0)\nor (max by (cluster,namespace,service) (label_replace(max by (cluster,namespace,endpoint) (kube_endpoint_address_available{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}), \"service\", \"$1\", \"endpoint\", \"(.+)\")) == 0)\nor (max by (cluster,namespace,service) (label_replace(max by (cluster,namespace,endpoint) (kube_endpoint_info{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}), \"service\", \"$1\", \"endpoint\", \"(.+)\")) and on (cluster,namespace) count by (cluster,namespace) (kube_endpoint_address{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}))) * 0 + 2))\nor (((max by (cluster,namespace,service) (kube_service_info{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) * 0 + -1))) and on (cluster,namespace,service) max by (cluster,namespace,service) (kube_service_info{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) == 2), \"resource\", \"$1\", \"service\", \"(.+)\")), \"kind\", \"Service без Ready endpoints\", \"__name__\", \".*\"))\nor (label_replace((label_replace(((((((max by (cluster,namespace,job_name) (kube_job_failed{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",condition=\"true\"}) == 1) * 0 + 2))\nor (((max by (cluster,namespace,job_name) (kube_job_complete{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",condition=\"true\"}) == 1) * 0 + 0))\nor (((max by (cluster,namespace,job_name) (kube_job_status_active{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) > 0) * 0 + 0))\nor (((max by (cluster,namespace,job_name) (kube_job_created{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) * 0 + 1)))) == 2), \"resource\", \"$1\", \"job_name\", \"(.+)\")), \"kind\", \"Job\", \"__name__\", \".*\"))\nor (label_replace((label_replace(((((((max by (cluster,namespace,cronjob) (kube_cronjob_spec_suspend{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) == 1) * 0 + 1))\nor (((max by (cluster,namespace,cronjob) ((topk by (cluster,namespace,cronjob) (1, (max by (cluster,namespace,job_name) (kube_job_created{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) * on (cluster,namespace,job_name) group_left (cronjob) (max by (cluster,namespace,job_name,cronjob) (label_replace((kube_job_owner{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",owner_kind=\"CronJob\",owner_is_controller=\"true\"}), \"cronjob\", \"$1\", \"owner_name\", \"(.+)\"))))) and on (cluster,namespace,job_name) (max by (cluster,namespace,job_name) (kube_job_failed{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",condition=\"true\"}) == 1))) * 0 + 2))\nor (((time() - (max by (cluster,namespace,cronjob) (kube_cronjob_next_schedule_time{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) > 300) * 0 + 1))\nor (((max by (cluster,namespace,cronjob) (kube_cronjob_spec_suspend{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) == 0) * 0 + 0))\nor (((max by (cluster,namespace,cronjob) (kube_cronjob_info{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) * 0 + -1)))) == 2), \"resource\", \"$1\", \"cronjob\", \"(.+)\")), \"kind\", \"CronJob\", \"__name__\", \".*\"))\nor (label_replace((label_replace(((((((max by (cluster,namespace,horizontalpodautoscaler) (kube_horizontalpodautoscaler_status_condition{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",condition=\"AbleToScale\",status=\"false\"}) == 1) * 0 + 2))\nor ((((max by (cluster,namespace,horizontalpodautoscaler) (kube_horizontalpodautoscaler_status_condition{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",condition=\"ScalingLimited\",status=\"true\"}) == 1)\nor (max by (cluster,namespace,horizontalpodautoscaler) (kube_horizontalpodautoscaler_status_condition{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",condition=\"ScalingActive\",status=\"false\"}) == 1)\nor (max by (cluster,namespace,horizontalpodautoscaler) (kube_horizontalpodautoscaler_status_condition{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",condition=\"ScalingActive\",status=\"unknown\"}) == 1)\nor (max by (cluster,namespace,horizontalpodautoscaler) (kube_horizontalpodautoscaler_status_condition{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",condition=\"AbleToScale\",status=\"unknown\"}) == 1)) * 0 + 1))\nor ((((max by (cluster,namespace,horizontalpodautoscaler) (kube_horizontalpodautoscaler_status_condition{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",condition=\"AbleToScale\",status=\"true\"}) == 1) and on (cluster,namespace,horizontalpodautoscaler) (max by (cluster,namespace,horizontalpodautoscaler) (kube_horizontalpodautoscaler_status_condition{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",condition=\"ScalingActive\",status=\"true\"}) == 1)) * 0 + 0))\nor (((max by (cluster,namespace,horizontalpodautoscaler) (kube_horizontalpodautoscaler_status_current_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) * 0 + -1)))) == 2), \"resource\", \"$1\", \"horizontalpodautoscaler\", \"(.+)\")), \"kind\", \"HPA\", \"__name__\", \".*\"))\nor (label_replace((label_replace(((((((max by (cluster,namespace,poddisruptionbudget) (kube_poddisruptionbudget_status_current_healthy{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) < max by (cluster,namespace,poddisruptionbudget) (kube_poddisruptionbudget_status_desired_healthy{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) * 0 + 2))\nor (((max by (cluster,namespace,poddisruptionbudget) (kube_poddisruptionbudget_status_pod_disruptions_allowed{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) == 0) * 0 + 1))\nor ((((max by (cluster,namespace,poddisruptionbudget) (kube_poddisruptionbudget_status_current_healthy{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) >= max by (cluster,namespace,poddisruptionbudget) (kube_poddisruptionbudget_status_desired_healthy{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) and on (cluster,namespace,poddisruptionbudget) (max by (cluster,namespace,poddisruptionbudget) (kube_poddisruptionbudget_status_pod_disruptions_allowed{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) > 0)) * 0 + 0))\nor (((max by (cluster,namespace,poddisruptionbudget) (kube_poddisruptionbudget_status_desired_healthy{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) * 0 + -1)))) == 2), \"resource\", \"$1\", \"poddisruptionbudget\", \"(.+)\")), \"kind\", \"PDB\", \"__name__\", \".*\")))\nor on () (label_replace((label_replace((label_replace(((count((kube_pod_info{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})\nor (kube_service_info{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})\nor (kube_persistentvolumeclaim_info{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})\nor (kube_deployment_spec_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) * 0 - 1)\nor (vector(-2))), \"kind\", \"Kubernetes\", \"__name__\", \".*\")), \"resource\", \"—\", \"__name__\", \".*\")), \"namespace\", \"—\", \"__name__\", \".*\"))",
           "format": "time_series",
           "instant": true,
           "range": false,
-          "legendFormat": "{{namespace}} / {{job_name}}"
+          "legendFormat": "{{kind}} · {{namespace}} / {{resource}}"
         }
       ],
       "options": {
@@ -2470,9 +2379,14 @@
                   "index": 3
                 },
                 "-1": {
-                  "text": "НЕТ ДАННЫХ",
+                  "text": "КРАСНЫХ НЕТ",
                   "color": "#687385",
                   "index": 0
+                },
+                "-2": {
+                  "text": "НЕТ МЕТРИК",
+                  "color": "#687385",
+                  "index": 4
                 }
               }
             }
@@ -2483,18 +2397,18 @@
     },
     {
       "type": "stat",
-      "id": 28,
-      "title": "CronJob",
-      "description": "Красный — последний сохранившийся дочерний Job завершился ошибкой. Жёлтый — CronJob приостановлен или следующий запуск просрочен более чем на 5 минут.",
+      "id": 21,
+      "title": "Заполнение PVC ≥ 90%",
+      "description": "Только PVC с заполнением от 90% включительно. Используется статистика файловой системы kubelet. Серый статус различает отсутствие критичных томов и отсутствие метрик по всем выбранным PVC.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
-        "x": 12,
-        "y": 56,
-        "w": 12,
-        "h": 6
+        "x": 16,
+        "y": 19,
+        "w": 8,
+        "h": 8
       },
       "targets": [
         {
@@ -2504,11 +2418,11 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "(((((max by (cluster,namespace,cronjob) (kube_cronjob_spec_suspend{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) == 1) * 0 + 1))\nor (((max by (cluster,namespace,cronjob) ((topk by (cluster,namespace,cronjob) (1, (max by (cluster,namespace,job_name) (kube_job_created{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) * on (cluster,namespace,job_name) group_left (cronjob) (max by (cluster,namespace,job_name,cronjob) (label_replace((kube_job_owner{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",owner_kind=\"CronJob\",owner_is_controller=\"true\"}), \"cronjob\", \"$1\", \"owner_name\", \"(.+)\"))))) and on (cluster,namespace,job_name) (max by (cluster,namespace,job_name) (kube_job_failed{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",condition=\"true\"}) == 1))) * 0 + 2))\nor (((time() - (max by (cluster,namespace,cronjob) (kube_cronjob_next_schedule_time{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) > 300) * 0 + 1))\nor (((max by (cluster,namespace,cronjob) (kube_cronjob_spec_suspend{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) == 0) * 0 + 0))\nor (((max by (cluster,namespace,cronjob) (kube_cronjob_info{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) * 0 + -1))))\nor on () (label_replace(label_replace(vector(-1), \"namespace\", \"—\", \"__name__\", \".*\"), \"cronjob\", \"—\", \"__name__\", \".*\"))",
+          "expr": "(((((max by (cluster,namespace,persistentvolumeclaim) (100 * kubelet_volume_stats_used_bytes{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"} / (kubelet_volume_stats_capacity_bytes{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"} > 0))) and on (cluster,namespace,persistentvolumeclaim) (max by (cluster,namespace,persistentvolumeclaim) (kube_persistentvolumeclaim_info{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})))\nor (((max by (cluster,namespace,persistentvolumeclaim) (kube_persistentvolumeclaim_info{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) * 0 + -1)))) >= 90)\nor on () (label_replace((label_replace(((count((((((max by (cluster,namespace,persistentvolumeclaim) (100 * kubelet_volume_stats_used_bytes{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"} / (kubelet_volume_stats_capacity_bytes{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"} > 0))) and on (cluster,namespace,persistentvolumeclaim) (max by (cluster,namespace,persistentvolumeclaim) (kube_persistentvolumeclaim_info{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})))\nor (((max by (cluster,namespace,persistentvolumeclaim) (kube_persistentvolumeclaim_info{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) * 0 + -1))))) >= 0) * 0 - 1)\nor (vector(-2))), \"namespace\", \"—\", \"__name__\", \".*\")), \"persistentvolumeclaim\", \"PVC\", \"__name__\", \".*\"))",
           "format": "time_series",
           "instant": true,
           "range": false,
-          "legendFormat": "{{namespace}} / {{cronjob}}"
+          "legendFormat": "{{namespace}} / {{persistentvolumeclaim}}"
         }
       ],
       "options": {
@@ -2546,11 +2460,11 @@
                 "color": "#238044"
               },
               {
-                "value": 1,
+                "value": 80,
                 "color": "#B58106"
               },
               {
-                "value": 2,
+                "value": 90,
                 "color": "#BA3438"
               }
             ]
@@ -2559,239 +2473,22 @@
             {
               "type": "value",
               "options": {
-                "0": {
-                  "text": "OK",
-                  "color": "#238044",
-                  "index": 1
-                },
-                "1": {
-                  "text": "ВНИМАНИЕ",
-                  "color": "#B58106",
-                  "index": 2
-                },
-                "2": {
-                  "text": "КРИТИЧНО",
-                  "color": "#BA3438",
-                  "index": 3
-                },
                 "-1": {
-                  "text": "НЕТ ДАННЫХ",
+                  "text": "КРАСНЫХ НЕТ",
                   "color": "#687385",
                   "index": 0
+                },
+                "-2": {
+                  "text": "НЕТ МЕТРИК",
+                  "color": "#687385",
+                  "index": 1
                 }
               }
             }
-          ]
-        },
-        "overrides": []
-      }
-    },
-    {
-      "type": "stat",
-      "id": 29,
-      "title": "HPA",
-      "description": "Красный — AbleToScale=False. Жёлтый — масштабирование ограничено, неактивно или статус неизвестен.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 62,
-        "w": 12,
-        "h": 6
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "editorMode": "code",
-          "expr": "(((((max by (cluster,namespace,horizontalpodautoscaler) (kube_horizontalpodautoscaler_status_condition{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",condition=\"AbleToScale\",status=\"false\"}) == 1) * 0 + 2))\nor ((((max by (cluster,namespace,horizontalpodautoscaler) (kube_horizontalpodautoscaler_status_condition{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",condition=\"ScalingLimited\",status=\"true\"}) == 1)\nor (max by (cluster,namespace,horizontalpodautoscaler) (kube_horizontalpodautoscaler_status_condition{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",condition=\"ScalingActive\",status=\"false\"}) == 1)\nor (max by (cluster,namespace,horizontalpodautoscaler) (kube_horizontalpodautoscaler_status_condition{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",condition=\"ScalingActive\",status=\"unknown\"}) == 1)\nor (max by (cluster,namespace,horizontalpodautoscaler) (kube_horizontalpodautoscaler_status_condition{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",condition=\"AbleToScale\",status=\"unknown\"}) == 1)) * 0 + 1))\nor ((((max by (cluster,namespace,horizontalpodautoscaler) (kube_horizontalpodautoscaler_status_condition{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",condition=\"AbleToScale\",status=\"true\"}) == 1) and on (cluster,namespace,horizontalpodautoscaler) (max by (cluster,namespace,horizontalpodautoscaler) (kube_horizontalpodautoscaler_status_condition{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\",condition=\"ScalingActive\",status=\"true\"}) == 1)) * 0 + 0))\nor (((max by (cluster,namespace,horizontalpodautoscaler) (kube_horizontalpodautoscaler_status_current_replicas{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) * 0 + -1))))\nor on () (label_replace(label_replace(vector(-1), \"namespace\", \"—\", \"__name__\", \".*\"), \"horizontalpodautoscaler\", \"—\", \"__name__\", \".*\"))",
-          "format": "time_series",
-          "instant": true,
-          "range": false,
-          "legendFormat": "{{namespace}} / {{horizontalpodautoscaler}}"
-        }
-      ],
-      "options": {
-        "colorMode": "background_solid",
-        "graphMode": "none",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
           ],
-          "fields": "",
-          "values": true,
-          "limit": 1000
-        },
-        "textMode": "value_and_name",
-        "wideLayout": false
-      },
-      "fieldConfig": {
-        "defaults": {
-          "noValue": "НЕТ ДАННЫХ",
-          "color": {
-            "mode": "thresholds"
-          },
-          "decimals": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "value": null,
-                "color": "#687385"
-              },
-              {
-                "value": 0,
-                "color": "#238044"
-              },
-              {
-                "value": 1,
-                "color": "#B58106"
-              },
-              {
-                "value": 2,
-                "color": "#BA3438"
-              }
-            ]
-          },
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "OK",
-                  "color": "#238044",
-                  "index": 1
-                },
-                "1": {
-                  "text": "ВНИМАНИЕ",
-                  "color": "#B58106",
-                  "index": 2
-                },
-                "2": {
-                  "text": "КРИТИЧНО",
-                  "color": "#BA3438",
-                  "index": 3
-                },
-                "-1": {
-                  "text": "НЕТ ДАННЫХ",
-                  "color": "#687385",
-                  "index": 0
-                }
-              }
-            }
-          ]
-        },
-        "overrides": []
-      }
-    },
-    {
-      "type": "stat",
-      "id": 30,
-      "title": "PodDisruptionBudget",
-      "description": "Красный — Ready Pod меньше требуемого минимума. Жёлтый — допустимых добровольных выселений нет.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 62,
-        "w": 12,
-        "h": 6
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "editorMode": "code",
-          "expr": "(((((max by (cluster,namespace,poddisruptionbudget) (kube_poddisruptionbudget_status_current_healthy{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) < max by (cluster,namespace,poddisruptionbudget) (kube_poddisruptionbudget_status_desired_healthy{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) * 0 + 2))\nor (((max by (cluster,namespace,poddisruptionbudget) (kube_poddisruptionbudget_status_pod_disruptions_allowed{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) == 0) * 0 + 1))\nor ((((max by (cluster,namespace,poddisruptionbudget) (kube_poddisruptionbudget_status_current_healthy{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) >= max by (cluster,namespace,poddisruptionbudget) (kube_poddisruptionbudget_status_desired_healthy{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) and on (cluster,namespace,poddisruptionbudget) (max by (cluster,namespace,poddisruptionbudget) (kube_poddisruptionbudget_status_pod_disruptions_allowed{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"}) > 0)) * 0 + 0))\nor (((max by (cluster,namespace,poddisruptionbudget) (kube_poddisruptionbudget_status_desired_healthy{namespace=~\"${namespace:regex}\",cluster=~\"${cluster:raw}\"})) * 0 + -1))))\nor on () (label_replace(label_replace(vector(-1), \"namespace\", \"—\", \"__name__\", \".*\"), \"poddisruptionbudget\", \"—\", \"__name__\", \".*\"))",
-          "format": "time_series",
-          "instant": true,
-          "range": false,
-          "legendFormat": "{{namespace}} / {{poddisruptionbudget}}"
-        }
-      ],
-      "options": {
-        "colorMode": "background_solid",
-        "graphMode": "none",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": true,
-          "limit": 1000
-        },
-        "textMode": "value_and_name",
-        "wideLayout": false
-      },
-      "fieldConfig": {
-        "defaults": {
-          "noValue": "НЕТ ДАННЫХ",
-          "color": {
-            "mode": "thresholds"
-          },
-          "decimals": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "value": null,
-                "color": "#687385"
-              },
-              {
-                "value": 0,
-                "color": "#238044"
-              },
-              {
-                "value": 1,
-                "color": "#B58106"
-              },
-              {
-                "value": 2,
-                "color": "#BA3438"
-              }
-            ]
-          },
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "OK",
-                  "color": "#238044",
-                  "index": 1
-                },
-                "1": {
-                  "text": "ВНИМАНИЕ",
-                  "color": "#B58106",
-                  "index": 2
-                },
-                "2": {
-                  "text": "КРИТИЧНО",
-                  "color": "#BA3438",
-                  "index": 3
-                },
-                "-1": {
-                  "text": "НЕТ ДАННЫХ",
-                  "color": "#687385",
-                  "index": 0
-                }
-              }
-            }
-          ]
+          "unit": "percent",
+          "min": 0,
+          "max": 100
         },
         "overrides": []
       }
