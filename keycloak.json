@@ -1,0 +1,761 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "📌 Золотые сигналы Keycloak (Golden Signals & Health)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Общий входящий трафик запросов к Keycloak в секунду (RPS). Показывает суммарную нагрузку на аутентификацию, обмен токенов и проверку сессий.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "reqps"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(keycloak_request_duration_count{namespace=~\"$namespace\",pod=~\"$pod\"}[2m])) or sum(rate(http_server_requests_seconds_count{namespace=~\"$namespace\",pod=~\"$pod\"}[2m])) or sum(rate(keycloak_requests_total{namespace=~\"$namespace\",pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Общий RPS",
+          "refId": "A"
+        }
+      ],
+      "title": "Общий RPS Keycloak",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Доля запросов, завершившихся серверной ошибкой HTTP 5xx. Норма: < 0.05%. Если значение > 1% — исчерпан пул БД, отвалился Infinispan или упал бэкенд PostgreSQL.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "red", "value": 2 }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "((sum(rate(keycloak_request_duration_count{namespace=~\"$namespace\",pod=~\"$pod\",code=~\"5..\"}[2m])) or sum(rate(http_server_requests_seconds_count{namespace=~\"$namespace\",pod=~\"$pod\",status=~\"5..\"}[2m]))) / (sum(rate(keycloak_request_duration_count{namespace=~\"$namespace\",pod=~\"$pod\"}[2m])) or sum(rate(http_server_requests_seconds_count{namespace=~\"$namespace\",pod=~\"$pod\"}[2m])))) * 100 or vector(0)",
+          "legendFormat": "% Ошибок 5xx",
+          "refId": "A"
+        }
+      ],
+      "title": "Доля ошибок 5xx (% 5xx Errors)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "99-й перцентиль времени ответа Keycloak. Норма: < 300-500ms. Значения > 1s означают зависание запросов к БД или тяжелые вызовы хеширования паролей.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "red", "value": 1.5 }
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(keycloak_request_duration_bucket{namespace=~\"$namespace\",pod=~\"$pod\"}[2m]))) or histogram_quantile(0.99, sum by (le) (rate(http_server_requests_seconds_bucket{namespace=~\"$namespace\",pod=~\"$pod\"}[2m])))",
+          "legendFormat": "P99 Latency",
+          "refId": "A"
+        }
+      ],
+      "title": "P99 Задержка ответа (P99 Latency)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Интенсивность ошибок входа (неверный пароль, заблокированный пользователь, неверный OTP). Всплески показывают атаку перебором паролей (Brute-force).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 10 }
+            ]
+          },
+          "unit": "errps"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(keycloak_user_event_total{namespace=~\"$namespace\",pod=~\"$pod\",event=~\"LOGIN_ERROR|REGISTER_ERROR\"}[2m])) or sum(rate(keycloak_failed_login_attempts_total{namespace=~\"$namespace\",pod=~\"$pod\"}[2m])) or vector(0)",
+          "legendFormat": "Ошибок входа / сек",
+          "refId": "A"
+        }
+      ],
+      "title": "Ошибки входа (Login Errors / sec)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество потоков приложения, заблокированных в ожидании свободного соединения из пула БД (Agroal Awaiting Threads). Должно быть строго 0! Если > 0 — база данных является узким горлышком.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(vendor_agroal_awaiting_count{namespace=~\"$namespace\",pod=~\"$pod\"}) or sum(agroal_awaiting_count{namespace=~\"$namespace\",pod=~\"$pod\"}) or vector(0)",
+          "legendFormat": "Ожидающих потоков",
+          "refId": "A"
+        }
+      ],
+      "title": "Очередь к БД (DB Pool Awaiting)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество активных пользовательских сессий, зарегистрированных в кэше Infinispan.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(vendor_cache_entries{cache=\"sessions\",namespace=~\"$namespace\",pod=~\"$pod\"}) or sum(keycloak_active_user_sessions{namespace=~\"$namespace\",pod=~\"$pod\"}) or sum(vendor_cache_manager_sessions_number_of_entries{namespace=~\"$namespace\",pod=~\"$pod\"}) or vector(0)",
+          "legendFormat": "Активных сессий",
+          "refId": "A"
+        }
+      ],
+      "title": "Активные сессии (User Sessions)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "🔐 Авторизация, Токены и Безопасность (Auth Events & Security)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Интенсивность успешных событий пользователей (LOGIN, CODE_TO_TOKEN, REFRESH_TOKEN, USERINFO_REQUEST, REGISTER) в секунду.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "stacking": { "group": "A", "mode": "normal" } },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (event) (rate(keycloak_user_event_total{namespace=~\"$namespace\",pod=~\"$pod\",event!~\"LOGIN_ERROR|REGISTER_ERROR.*\"}[2m]))",
+          "legendFormat": "Событие: {{event}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (realm) (rate(keycloak_logins_total{namespace=~\"$namespace\",pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Login (Realm: {{realm}})",
+          "refId": "B"
+        }
+      ],
+      "title": "Успешные события пользователей (Auth & Token Operations)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "События ошибок безопасности: LOGIN_ERROR, CODE_TO_TOKEN_ERROR, REFRESH_TOKEN_ERROR, CLIENT_LOGIN_ERROR. Позволяет мгновенно обнаружить атаку на учетные записи или сбои в интеграции микросервисов.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1 },
+          "unit": "errps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "id": 8,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (event, error) (rate(keycloak_user_event_total{namespace=~\"$namespace\",pod=~\"$pod\",event=~\"LOGIN_ERROR|REGISTER_ERROR|CODE_TO_TOKEN_ERROR|REFRESH_TOKEN_ERROR|CLIENT_LOGIN_ERROR\"}[2m]))",
+          "legendFormat": "Ошибка {{event}} ({{error}})",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (realm) (rate(keycloak_failed_login_attempts_total{namespace=~\"$namespace\",pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Failed Login (Realm: {{realm}})",
+          "refId": "B"
+        }
+      ],
+      "title": "Ошибки авторизации и безопасности (Security Failures)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Разбивка успешных логинов по реалмам (Realms). Позволяет увидеть, какие арендаторы создают пик нагрузки на систему аутентификации.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "id": 9,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (realm) (rate(keycloak_user_event_total{namespace=~\"$namespace\",pod=~\"$pod\",event=\"LOGIN\"}[2m])) or sum by (realm) (rate(keycloak_logins_total{namespace=~\"$namespace\",pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Входов в реалм: {{realm}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Интенсивность входа по Реалмам (Logins by Realm)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество выданных и обновленных токенов в секунду: обмен кода авторизации на токен (code_to_token) и продление сессий через refresh token.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "id": 10,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum(rate(keycloak_user_event_total{namespace=~\"$namespace\",pod=~\"$pod\",event=\"CODE_TO_TOKEN\"}[2m]))",
+          "legendFormat": "Code to Token (Новые токены)",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(keycloak_user_event_total{namespace=~\"$namespace\",pod=~\"$pod\",event=\"REFRESH_TOKEN\"}[2m]))",
+          "legendFormat": "Refresh Token (Продление)",
+          "refId": "B"
+        }
+      ],
+      "title": "Выдача и Продление Токенов (Token Issuance vs Refresh)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "id": 102,
+      "title": "🗄️ Пул Соединений с Базой Данных (Agroal / DB Connection Pool — Точка Отказа №1)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Использование соединений пула Agroal к PostgreSQL: Active (заняты выполнением транзакций), Available (свободны в пуле), Max (максимальный лимит пула). Если Active приближается к Max — пул исчерпан.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 23 },
+      "id": 11,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (pod) (vendor_agroal_active_count{namespace=~\"$namespace\",pod=~\"$pod\"}) or sum by (pod) (agroal_active_count{namespace=~\"$namespace\",pod=~\"$pod\"})",
+          "legendFormat": "Active Connections: {{pod}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (pod) (vendor_agroal_available_count{namespace=~\"$namespace\",pod=~\"$pod\"}) or sum by (pod) (agroal_available_count{namespace=~\"$namespace\",pod=~\"$pod\"})",
+          "legendFormat": "Available Connections: {{pod}}",
+          "refId": "B"
+        },
+        {
+          "expr": "max by (pod) (vendor_agroal_max_count{namespace=~\"$namespace\",pod=~\"$pod\"}) or max by (pod) (agroal_max_count{namespace=~\"$namespace\",pod=~\"$pod\"})",
+          "legendFormat": "Max Pool Limit: {{pod}}",
+          "refId": "C"
+        }
+      ],
+      "title": "Пул соединений с БД (Active vs Available vs Max Pool)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Потоки, заблокированные в очереди ожидания соединения с базой (Awaiting Count), и среднее время ожидания соединения из пула. Любое значение выше нуля означает дефицит коннектов.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 23 },
+      "id": 12,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (pod) (vendor_agroal_awaiting_count{namespace=~\"$namespace\",pod=~\"$pod\"}) or sum by (pod) (agroal_awaiting_count{namespace=~\"$namespace\",pod=~\"$pod\"})",
+          "legendFormat": "Зависшие потоки (Awaiting): {{pod}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Очередь ожидания соединений с БД (Threads Awaiting Connection)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Время создания новых соединений с базой данных (Connection Creation Duration). Если значение превышает 50-100ms, сетевой канал до PostgreSQL перегружен или СУБД медленно выполняет аутентификацию handshake.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 31 },
+      "id": 13,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (pod) (rate(vendor_agroal_creation_time_seconds_sum{namespace=~\"$namespace\",pod=~\"$pod\"}[2m])) / sum by (pod) (rate(vendor_agroal_creation_time_seconds_count{namespace=~\"$namespace\",pod=~\"$pod\"}[2m])) or sum by (pod) (rate(agroal_creation_time_seconds_sum{namespace=~\"$namespace\",pod=~\"$pod\"}[2m])) / sum by (pod) (rate(agroal_creation_time_seconds_count{namespace=~\"$namespace\",pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Avg Connection Creation Time: {{pod}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Задержка создания соединений с PostgreSQL (DB Handshake Latency)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 39 },
+      "id": 103,
+      "title": "⚡ Кластеризация, Распределенный Кэш и JGroups (Infinispan)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество записей в ключевых кэшах Infinispan: sessions (активные сессии), clientSessions (сессии клиентов), authenticationSessions (шаги логина/MFA), offlineSessions, users, realms.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "id": 14,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (cache) (vendor_cache_entries{namespace=~\"$namespace\",pod=~\"$pod\"}) or sum by (cache) (vendor_cache_manager_sessions_number_of_entries{namespace=~\"$namespace\",pod=~\"$pod\"})",
+          "legendFormat": "Записей в кэше: {{cache}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Размер кэшей Infinispan по типам (Infinispan Cache Entries)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Процент попаданий в кэш (Cache Hit Ratio). Норма: > 90-95%. Падение коэффициента попадания означает частую инвалидацию кэша и рост паразитной нагрузки на PostgreSQL.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 85 },
+              { "color": "green", "value": 95 }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "id": 15,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "(sum(rate(vendor_cache_hits_total{namespace=~\"$namespace\",pod=~\"$pod\"}[2m])) / (sum(rate(vendor_cache_hits_total{namespace=~\"$namespace\",pod=~\"$pod\"}[2m])) + sum(rate(vendor_cache_misses_total{namespace=~\"$namespace\",pod=~\"$pod\"}[2m])))) * 100",
+          "legendFormat": "% Cache Hit Ratio",
+          "refId": "A"
+        }
+      ],
+      "title": "Эффективность кэша Infinispan (% Cache Hit Ratio)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Размер кластера JGroups (количество обнаруженных узлов Keycloak в группе репликации). Должно совпадать с количеством запущенных подов Deployment/StatefulSet. Падение ниже числа реплик означает сетевую изоляцию (Split-Brain).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 48 },
+      "id": 16,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "max by (pod) (vendor_jgroups_view{namespace=~\"$namespace\",pod=~\"$pod\"}) or max by (pod) (vendor_jgroups_cluster_size{namespace=~\"$namespace\",pod=~\"$pod\"})",
+          "legendFormat": "JGroups Cluster View: {{pod}}",
+          "refId": "A"
+        },
+        {
+          "expr": "count(kube_pod_info{namespace=~\"$namespace\",pod=~\"$pod\"})",
+          "legendFormat": "Всего подов Keycloak в K8s",
+          "refId": "B"
+        }
+      ],
+      "title": "Размер кластера репликации JGroups (JGroups Cluster View vs K8s Pods)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 56 },
+      "id": 104,
+      "title": "🌐 HTTP Трафик, Коды Ответов и Эндпоинты (Undertow / Netty)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Распределение входящих запросов по HTTP статус-кодам (2xx, 3xx редиректы, 4xx ошибки клиентов, 5xx сбои сервера).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "stacking": { "group": "A", "mode": "normal" } },
+          "unit": "reqps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 57 },
+      "id": 17,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (code) (rate(keycloak_request_duration_count{namespace=~\"$namespace\",pod=~\"$pod\"}[2m]))",
+          "legendFormat": "HTTP {{code}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (status) (rate(http_server_requests_seconds_count{namespace=~\"$namespace\",pod=~\"$pod\"}[2m]))",
+          "legendFormat": "HTTP {{status}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Запросы по HTTP статус-кодам (Status Codes)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Квантили P50, P90, P99 времени выполнения HTTP-запросов веб-сервером Keycloak.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 57 },
+      "id": 18,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(keycloak_request_duration_bucket{namespace=~\"$namespace\",pod=~\"$pod\"}[2m]))) or histogram_quantile(0.99, sum by (le) (rate(http_server_requests_seconds_bucket{namespace=~\"$namespace\",pod=~\"$pod\"}[2m])))",
+          "legendFormat": "P99 Response Time",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.90, sum by (le) (rate(keycloak_request_duration_bucket{namespace=~\"$namespace\",pod=~\"$pod\"}[2m]))) or histogram_quantile(0.90, sum by (le) (rate(http_server_requests_seconds_bucket{namespace=~\"$namespace\",pod=~\"$pod\"}[2m])))",
+          "legendFormat": "P90 Response Time",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(keycloak_request_duration_bucket{namespace=~\"$namespace\",pod=~\"$pod\"}[2m]))) or histogram_quantile(0.50, sum by (le) (rate(http_server_requests_seconds_bucket{namespace=~\"$namespace\",pod=~\"$pod\"}[2m])))",
+          "legendFormat": "P50 Response Time",
+          "refId": "C"
+        }
+      ],
+      "title": "Квантили времени ответа сервера (HTTP Latency)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Топ-7 самых нагруженных URI эндпоинтов Keycloak (например, /protocol/openid-connect/token, /auth/realms/.../login-actions/authenticate, /protocol/openid-connect/userinfo).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "reqps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 65 },
+      "id": 19,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "topk(7, sum by (uri) (rate(http_server_requests_seconds_count{namespace=~\"$namespace\",pod=~\"$pod\"}[2m]))) or topk(7, sum by (uri) (rate(keycloak_request_duration_count{namespace=~\"$namespace\",pod=~\"$pod\"}[2m])))",
+          "legendFormat": "URI: {{uri}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Топ эндпоинтов по нагрузке (Top Endpoints RPS)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 73 },
+      "id": 105,
+      "title": "⚙️ Системные ресурсы JVM, Потоки и Сборка Мусора (JVM Runtime & GC)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Утилизация оперативной памяти JVM Heap (Used vs Max). Превышение 85% приводит к частым длительным паузам GC.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 74 },
+      "id": 20,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (pod) (jvm_memory_used_bytes{area=\"heap\",namespace=~\"$namespace\",pod=~\"$pod\"})",
+          "legendFormat": "Heap Used: {{pod}}",
+          "refId": "A"
+        },
+        {
+          "expr": "max by (pod) (jvm_memory_max_bytes{area=\"heap\",namespace=~\"$namespace\",pod=~\"$pod\"})",
+          "legendFormat": "Heap Max: {{pod}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Память JVM Heap (Used vs Max)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Суммарное время пауз сборщика мусора (GC Stop-The-World) в секунду. Всплески > 0.5s замораживают обработку HTTP-запросов и приводят к ложным срабатываниям Liveness Probes.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 74 },
+      "id": 21,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (pod, gc) (rate(jvm_gc_pause_seconds_sum{namespace=~\"$namespace\",pod=~\"$pod\"}[2m])) or sum by (pod, action) (rate(jvm_gc_collection_seconds_sum{namespace=~\"$namespace\",pod=~\"$pod\"}[2m]))",
+          "legendFormat": "GC Pause: {{pod}} ({{gc}}{{action}})",
+          "refId": "A"
+        }
+      ],
+      "title": "Время пауз GC в секунду (GC Pause Duration / sec)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество активных, заблокированных (blocked) и ожидающих (waiting) потоков JVM. Резкий взлет blocked/waiting потоков указывает на deadlock или взаимные блокировки при синхронизации кэша.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 74 },
+      "id": 22,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (pod) (jvm_threads_current{namespace=~\"$namespace\",pod=~\"$pod\"}) or sum by (pod) (jvm_threads_live_threads{namespace=~\"$namespace\",pod=~\"$pod\"})",
+          "legendFormat": "Live Threads: {{pod}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (pod) (jvm_threads_blocked_threads{namespace=~\"$namespace\",pod=~\"$pod\"})",
+          "legendFormat": "Blocked Threads: {{pod}}",
+          "refId": "B"
+        },
+        {
+          "expr": "sum by (pod) (jvm_threads_waiting_threads{namespace=~\"$namespace\",pod=~\"$pod\"})",
+          "legendFormat": "Waiting Threads: {{pod}}",
+          "refId": "C"
+        }
+      ],
+      "title": "Потоки JVM (Live vs Blocked vs Waiting)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["keycloak", "iam", "sso", "security", "infinispan", "agroal", "troubleshooting"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "type": "datasource"
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "definition": "label_values(keycloak_request_duration_count, namespace) or label_values(http_server_requests_seconds_count{uri=~\".*auth.*|.*realms.*\"}, namespace) or label_values(kube_pod_info{pod=~\".*keycloak.*\"}, namespace)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Namespace",
+        "multi": false,
+        "name": "namespace",
+        "query": {
+          "query": "label_values(keycloak_request_duration_count, namespace) or label_values(http_server_requests_seconds_count{uri=~\".*auth.*|.*realms.*\"}, namespace) or label_values(kube_pod_info{pod=~\".*keycloak.*\"}, namespace)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "definition": "label_values(keycloak_request_duration_count{namespace=~\"$namespace\"}, pod) or label_values(http_server_requests_seconds_count{namespace=~\"$namespace\"}, pod) or label_values(kube_pod_info{namespace=~\"$namespace\",pod=~\".*keycloak.*\"}, pod)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Pod",
+        "multi": true,
+        "name": "pod",
+        "query": {
+          "query": "label_values(keycloak_request_duration_count{namespace=~\"$namespace\"}, pod) or label_values(http_server_requests_seconds_count{namespace=~\"$namespace\"}, pod) or label_values(kube_pod_info{namespace=~\"$namespace\",pod=~\".*keycloak.*\"}, pod)",
+          "refId": "StandardVariableQuery2"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Keycloak IAM / Master Deep Observability & Troubleshooting (RU)",
+  "uid": "keycloak-master-deep-observability-ru",
+  "version": 1
+}

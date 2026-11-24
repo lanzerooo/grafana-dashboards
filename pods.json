@@ -1,0 +1,748 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "📌 Сводка по Выбранным Деплоям и Подам (Deployment & Pod Status Summary)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Соотношение готовых (Available) и желаемых (Desired) реплик для выбранного Deployment / StatefulSet.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(kube_deployment_status_replicas_available{namespace=~\"$namespace\",deployment=~\"$workload\"}) or sum(kube_statefulset_status_replicas_ready{namespace=~\"$namespace\",statefulset=~\"$workload\"})",
+          "legendFormat": "Готово (Available)",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(kube_deployment_spec_replicas{namespace=~\"$namespace\",deployment=~\"$workload\"}) or sum(kube_statefulset_replicas{namespace=~\"$namespace\",statefulset=~\"$workload\"})",
+          "legendFormat": "Задано (Desired)",
+          "refId": "B"
+        }
+      ],
+      "title": "Реплики (Available / Desired)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество активных подов в статусе Running по выбранному фильтру.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(kube_pod_status_phase{namespace=~\"$namespace\",pod=~\"$workload.*\",pod=~\"$pod\",phase=\"Running\"})",
+          "legendFormat": "Running",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(kube_pod_status_phase{namespace=~\"$namespace\",pod=~\"$workload.*\",pod=~\"$pod\",phase=~\"Pending|Failed|Unknown\"})",
+          "legendFormat": "Pending / Failed",
+          "refId": "B"
+        }
+      ],
+      "title": "Статус Подов (Running vs Problem)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Суммарное количество рестартов контейнеров за выбранный интервал времени.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=~\"$namespace\",pod=~\"$workload.*\",pod=~\"$pod\"}[$__range]))",
+          "legendFormat": "Рестартов за период",
+          "refId": "A"
+        }
+      ],
+      "title": "Рестарты за период",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество контейнеров, убитых ядром Linux из-за нехватки памяти (OOMKilled).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(kube_pod_container_status_last_terminated_reason{namespace=~\"$namespace\",pod=~\"$workload.*\",pod=~\"$pod\",reason=\"OOMKilled\"}) or vector(0)",
+          "legendFormat": "OOMKilled",
+          "refId": "A"
+        }
+      ],
+      "title": "События OOMKilled",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Средний процент троттлинга процессора (CPU CFS Throttling) для выбранных подов. Если > 15-20% — сервис искусственно тормозится ядром из-за низких CPU Limits.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 25 }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "(sum(rate(container_cpu_cfs_throttled_periods_total{namespace=~\"$namespace\",pod=~\"$workload.*\",pod=~\"$pod\",container!=\"\",container!=\"POD\"}[2m])) / sum(rate(container_cpu_cfs_periods_total{namespace=~\"$namespace\",pod=~\"$workload.*\",pod=~\"$pod\",container!=\"\",container!=\"POD\"}[2m]))) * 100 or vector(0)",
+          "legendFormat": "% CPU Throttling",
+          "refId": "A"
+        }
+      ],
+      "title": "Троттлинг CPU (% Throttled)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Статус автомасштабирования HPA для выбранного сервиса: текущие реплики vs максимальный потолок.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(kube_horizontalpodautoscaler_status_current_replicas{namespace=~\"$namespace\",horizontalpodautoscaler=~\"$workload.*\"})",
+          "legendFormat": "HPA Current",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(kube_horizontalpodautoscaler_spec_max_replicas{namespace=~\"$namespace\",horizontalpodautoscaler=~\"$workload.*\"})",
+          "legendFormat": "HPA Max",
+          "refId": "B"
+        }
+      ],
+      "title": "HPA Автоскейлер (Current / Max)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "📋 Детальный Паспорт Подов, Контейнеров и Версий Образов (Pod & Container Inspector)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Полная сводная таблица по каждому поду: в каком неймспейсе и на какой ноде запущен, внутренний IP-адрес, готовность (Ready), число рестартов и точная причина последнего падения.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Рестарты" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "mode": "basic", "type": "color-background" } },
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "semi-dark-yellow", "value": 1 }, { "color": "red", "value": 5 }] } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Готовность (Ready)" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "mode": "basic", "type": "color-background" } },
+              { "id": "mappings", "value": [{ "options": { "0": { "color": "red", "text": "NOT READY" }, "1": { "color": "green", "text": "READY" } }, "type": "value" }] }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 9, "w": 15, "x": 0, "y": 6 },
+      "id": 7,
+      "options": {
+        "footer": { "countRows": false, "enablePagination": true, "fields": "", "reducer": ["sum"], "show": false },
+        "showHeader": true,
+        "sortBy": [{ "desc": true, "displayName": "Рестарты" }]
+      },
+      "targets": [
+        {
+          "expr": "max by (namespace, pod, node, pod_ip, host_ip) (kube_pod_info{namespace=~\"$namespace\",pod=~\"$workload.*\",pod=~\"$pod\"})",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        },
+        {
+          "expr": "min by (pod) (kube_pod_status_ready{namespace=~\"$namespace\",pod=~\"$workload.*\",pod=~\"$pod\",condition=\"true\"})",
+          "format": "table",
+          "instant": true,
+          "refId": "B"
+        },
+        {
+          "expr": "sum by (pod) (kube_pod_container_status_restarts_total{namespace=~\"$namespace\",pod=~\"$workload.*\",pod=~\"$pod\"})",
+          "format": "table",
+          "instant": true,
+          "refId": "C"
+        }
+      ],
+      "title": "Инспектор Подов: Размещение на нодах, IP, Готовность и Рестарты",
+      "transformations": [
+        { "id": "joinByField", "options": { "byField": "pod", "mode": "outer" } },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "Time 1": true, "Time 2": true, " Time 3": true, "Value #A": true },
+            "renameByName": {
+              "Value #B": "Готовность (Ready)",
+              "Value #C": "Рестарты",
+              "host_ip": "IP Ноды",
+              "namespace": "Namespace",
+              "node": "Нода",
+              "pod": "Имя Пода",
+              "pod_ip": "IP Пода"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Показывает точные версии Docker-образов (image_spec) и причину последнего аварийного завершения по каждому контейнеру.",
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "auto" } }
+      },
+      "gridPos": { "h": 9, "w": 9, "x": 15, "y": 6 },
+      "id": 8,
+      "options": {
+        "footer": { "enablePagination": true, "show": false },
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "expr": "count by (pod, container, image_spec) (kube_pod_container_info{namespace=~\"$namespace\",pod=~\"$workload.*\",pod=~\"$pod\"})",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        },
+        {
+          "expr": "max by (pod, container, reason) (kube_pod_container_status_last_terminated_reason{namespace=~\"$namespace\",pod=~\"$workload.*\",pod=~\"$pod\"} == 1)",
+          "format": "table",
+          "instant": true,
+          "refId": "B"
+        }
+      ],
+      "title": "Версии Образов (Images) и Причины Падений (Last Terminated Reason)",
+      "transformations": [
+        { "id": "joinByField", "options": { "byField": "pod", "mode": "outer" } },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time 1": true, "Time 2": true, "Value #A": true, "Value #B": true, "container 2": true },
+            "renameByName": {
+              "container": "Контейнер",
+              "container 1": "Контейнер",
+              "image_spec": "Docker Образ (Image)",
+              "pod": "Под",
+              "reason": "Причина прошлого сбоя"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 15 },
+      "id": 102,
+      "title": "⚡ Процессор (CPU): Фактическое потребление vs Requests / Limits & Троттлинг",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Фактическое потребление ядер процессора каждым подом в сопоставлении с заданными Requests и Limits.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "id": 9,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=~\"$namespace\",pod=~\"$workload.*\",pod=~\"$pod\",container!=\"\",container!=\"POD\"}[2m]))",
+          "legendFormat": "CPU Usage: {{pod}}",
+          "refId": "A"
+        },
+        {
+          "expr": "avg(kube_pod_container_resource_requests{namespace=~\"$namespace\",pod=~\"$workload.*\",pod=~\"$pod\",resource=\"cpu\"})",
+          "legendFormat": "⚠️ CPU Request (per pod)",
+          "refId": "B"
+        },
+        {
+          "expr": "avg(kube_pod_container_resource_limits{namespace=~\"$namespace\",pod=~\"$workload.*\",pod=~\"$pod\",resource=\"cpu\"})",
+          "legendFormat": "🛑 CPU Limit (per pod)",
+          "refId": "C"
+        }
+      ],
+      "title": "Потребление CPU по подам (Usage vs Request / Limit в ядрах)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Процент периодов CFS планировщика ядра, когда под принудительно замораживался из-за превышения CPU Limit. Значения > 10-20% вызывают резкий рост времени ответа API (P99 Latency).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2 },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 25 }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "id": 10,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "(sum by (pod) (rate(container_cpu_cfs_throttled_periods_total{namespace=~\"$namespace\",pod=~\"$workload.*\",pod=~\"$pod\",container!=\"\",container!=\"POD\"}[2m])) / sum by (pod) (rate(container_cpu_cfs_periods_total{namespace=~\"$namespace\",pod=~\"$workload.*\",pod=~\"$pod\",container!=\"\",container!=\"POD\"}[2m]))) * 100",
+          "legendFormat": "Throttled %: {{pod}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Троттлинг CPU по подам (% CFS Throttled Periods)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 24 },
+      "id": 103,
+      "title": "🧠 Оперативная Память (Memory): Working Set vs Limits & Угроза OOMKilled",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Фактическое потребление памяти Working Set (именно по этой метрике Kubelet и OOM Killer убивают под) на фоне заданных Requests и Limits.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 25 },
+      "id": 11,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=~\"$namespace\",pod=~\"$workload.*\",pod=~\"$pod\",container!=\"\",container!=\"POD\"})",
+          "legendFormat": "Working Set: {{pod}}",
+          "refId": "A"
+        },
+        {
+          "expr": "avg(kube_pod_container_resource_requests{namespace=~\"$namespace\",pod=~\"$workload.*\",pod=~\"$pod\",resource=\"memory\"})",
+          "legendFormat": "⚠️ Memory Request",
+          "refId": "B"
+        },
+        {
+          "expr": "avg(kube_pod_container_resource_limits{namespace=~\"$namespace\",pod=~\"$workload.*\",pod=~\"$pod\",resource=\"memory\"})",
+          "legendFormat": "🛑 Memory Limit (Порог OOM)",
+          "refId": "C"
+        }
+      ],
+      "title": "Память по подам: Working Set vs Request / Limit",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Насколько близко каждый под подошел к своему Memory Limit в процентах. Достижение 100% мгновенно вызывает OOMKilled.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 80 },
+              { "color": "red", "value": 92 }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 25 },
+      "id": 12,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "(sum by (pod) (container_memory_working_set_bytes{namespace=~\"$namespace\",pod=~\"$workload.*\",pod=~\"$pod\",container!=\"\",container!=\"POD\"}) / sum by (pod) (kube_pod_container_resource_limits{namespace=~\"$namespace\",pod=~\"$workload.*\",pod=~\"$pod\",resource=\"memory\"})) * 100",
+          "legendFormat": "% от Лимита: {{pod}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Процент заполнения Memory Limit (% До порога OOMKilled)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 33 },
+      "id": 104,
+      "title": "🌐 Сеть Подов и Метрики Приложений (CNI Network & Istio L7 API Telemetry)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Сетевой трафик подов на уровне сетевых интерфейсов (Входящий Rx и Исходящий Tx).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "Bps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 34 },
+      "id": 13,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (pod) (rate(container_network_receive_bytes_total{namespace=~\"$namespace\",pod=~\"$workload.*\",pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Rx (Входящий): {{pod}}",
+          "refId": "A"
+        },
+        {
+          "expr": "-sum by (pod) (rate(container_network_transmit_bytes_total{namespace=~\"$namespace\",pod=~\"$workload.*\",pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Tx (Исходящий): {{pod}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Сетевой трафик подов (Rx / Tx Bandwidth)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Если апишка работает в контуре Istio: показывает входящий HTTP/gRPC RPS в разбивке по кодам ответов (200, 4xx, 5xx).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "stacking": { "group": "A", "mode": "normal" } },
+          "unit": "reqps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 34 },
+      "id": 14,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (response_code) (rate(istio_requests_total{destination_workload_namespace=~\"$namespace\",destination_workload=~\"$workload\",pod=~\"$pod\"}[2m]))",
+          "legendFormat": "HTTP {{response_code}}",
+          "refId": "A"
+        }
+      ],
+      "title": "HTTP/gRPC Трафик и Коды Ответов API (Istio L7 RPS)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Квантили времени ответа выбранной апишки (P50, P90, P99) по данным сайдкаров Istio Envoy.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 34 },
+      "id": 15,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(istio_request_duration_milliseconds_bucket{destination_workload_namespace=~\"$namespace\",destination_workload=~\"$workload\",pod=~\"$pod\"}[2m]))) / 1000",
+          "legendFormat": "P99 Latency",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.90, sum by (le) (rate(istio_request_duration_milliseconds_bucket{destination_workload_namespace=~\"$namespace\",destination_workload=~\"$workload\",pod=~\"$pod\"}[2m]))) / 1000",
+          "legendFormat": "P90 Latency",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(istio_request_duration_milliseconds_bucket{destination_workload_namespace=~\"$namespace\",destination_workload=~\"$workload\",pod=~\"$pod\"}[2m]))) / 1000",
+          "legendFormat": "P50 Latency",
+          "refId": "C"
+        }
+      ],
+      "title": "Время ответа API: P99 / P90 / P50 (Istio L7 Latency)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 42 },
+      "id": 105,
+      "title": "💽 Дисковый Ввод-Вывод Контейнеров и Тома (Filesystem I/O & PVC)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Интенсивность чтения и записи контейнеров на дисковую подсистему узла.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "Bps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 43 },
+      "id": 16,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (pod) (rate(container_fs_reads_bytes_total{namespace=~\"$namespace\",pod=~\"$workload.*\",pod=~\"$pod\",container!=\"\",container!=\"POD\"}[2m]))",
+          "legendFormat": "Read: {{pod}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (pod) (rate(container_fs_writes_bytes_total{namespace=~\"$namespace\",pod=~\"$workload.*\",pod=~\"$pod\",container!=\"\",container!=\"POD\"}[2m]))",
+          "legendFormat": "Write: {{pod}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Дисковый I/O Подов (Container Read / Write Bps)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Сетевые дропы пакетов на интерфейсах выбранных подов. В норме должно быть строго 0.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1 },
+          "unit": "pps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 43 },
+      "id": 17,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (pod) (rate(container_network_receive_packets_dropped_total{namespace=~\"$namespace\",pod=~\"$workload.*\",pod=~\"$pod\"}[2m])) + sum by (pod) (rate(container_network_transmit_packets_dropped_total{namespace=~\"$namespace\",pod=~\"$workload.*\",pod=~\"$pod\"}[2m]))",
+          "legendFormat": "Packet Drops: {{pod}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Дропы сетевых пакетов на интерфейсах подов (Network Drops)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["kubernetes", "pods", "deployments", "workloads", "resources", "api", "troubleshooting"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "type": "datasource"
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "definition": "label_values(kube_pod_info, namespace)",
+        "description": "Фильтр по неймспейсу. Оставьте All, чтобы искать деплой/апишку сразу по всему кластеру.",
+        "hide": 0,
+        "includeAll": true,
+        "label": "1. Namespace",
+        "multi": true,
+        "name": "namespace",
+        "query": {
+          "query": "label_values(kube_pod_info, namespace)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "definition": "label_values(kube_deployment_spec_replicas{namespace=~\"$namespace\"}, deployment)",
+        "description": "Выберите или введите имя Deployment / API (работает даже если Namespace = All).",
+        "hide": 0,
+        "includeAll": true,
+        "label": "2. Deployment / API",
+        "multi": true,
+        "name": "workload",
+        "query": {
+          "query": "label_values(kube_deployment_spec_replicas{namespace=~\"$namespace\"}, deployment)",
+          "refId": "StandardVariableQuery2"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "definition": "label_values(kube_pod_info{namespace=~\"$namespace\", pod=~\"$workload.*\"}, pod)",
+        "description": "Точечный фильтр по конкретным подам.",
+        "hide": 0,
+        "includeAll": true,
+        "label": "3. Pod",
+        "multi": true,
+        "name": "pod",
+        "query": {
+          "query": "label_values(kube_pod_info{namespace=~\"$namespace\", pod=~\"$workload.*\"}, pod)",
+          "refId": "StandardVariableQuery3"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Kubernetes / Workloads, Deployments & Pods Explorer 360° (RU)",
+  "uid": "k8s-workloads-pods-explorer-360-ru",
+  "version": 1
+}

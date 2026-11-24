@@ -1,0 +1,841 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "📌 Золотые сигналы Elasticsearch (Cluster Health & Red Flags)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Текущий статус здоровья кластера: 1 = GREEN (все primary и replica шарды аллоцированы); 2 = YELLOW (primary аллоцированы, часть replica не распределена); 3 = RED (хотя бы один primary шард недоступен, потеря данных/запросов).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "GREEN (OK)" }, "2": { "color": "yellow", "text": "YELLOW (DEGRADED)" }, "3": { "color": "red", "text": "RED (CRITICAL)" } }, "type": "value" }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 2 },
+              { "color": "red", "value": 3 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "elasticsearch_cluster_health_status{cluster=~\"$cluster\"} or (elasticsearch_cluster_health_status{color=\"green\",cluster=~\"$cluster\"} == 1) * 1 or (elasticsearch_cluster_health_status{color=\"yellow\",cluster=~\"$cluster\"} == 1) * 2 or (elasticsearch_cluster_health_status{color=\"red\",cluster=~\"$cluster\"} == 1) * 3",
+          "legendFormat": "Статус Кластера",
+          "refId": "A"
+        }
+      ],
+      "title": "Статус Кластера (Cluster Status)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество активных узлов в кластере (Master, Data, Ingest, Coordinating). Падение числа узлов указывает на аварийное падение ноды или разрыв сетевой связности (Split-Brain / Discovery failure).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "elasticsearch_cluster_health_number_of_nodes{cluster=~\"$cluster\"}",
+          "legendFormat": "Всего нод",
+          "refId": "A"
+        },
+        {
+          "expr": "elasticsearch_cluster_health_number_of_data_nodes{cluster=~\"$cluster\"}",
+          "legendFormat": "Data нод",
+          "refId": "B"
+        }
+      ],
+      "title": "Узлы Кластера (Active Nodes)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество шардов, которые кластер не смог аллоцировать на data-ноды. Норма: строго 0. Любое значение > 0 переводит кластер в Yellow или Red. Причины: нехватка места на диске (High Watermark), недоступность нод с копией данных.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 10 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "elasticsearch_cluster_health_unassigned_shards{cluster=~\"$cluster\"}",
+          "legendFormat": "Нераспределенных шардов",
+          "refId": "A"
+        }
+      ],
+      "title": "Нераспределенные шарды (Unassigned Shards)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Максимальный процент использования JVM Heap среди всех нод кластера. Рекомендуемый максимум размера кучи — 31GB (для сохранения Compressed OOPs). При превышении 80-85% начинаются длинные паузы сборщика мусора.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 75 },
+              { "color": "red", "value": 85 }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "max((elasticsearch_jvm_memory_used_bytes{area=\"heap\",cluster=~\"$cluster\"} / elasticsearch_jvm_memory_max_bytes{area=\"heap\",cluster=~\"$cluster\"}) * 100)",
+          "legendFormat": "Макс % Heap",
+          "refId": "A"
+        }
+      ],
+      "title": "Пиковая утилизация JVM Heap (% Max)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество отклоненных операций индексации (Write Rejections). Норма: строго 0! Если значение > 0 — очередь записи переполнена, Logstash/Beats получают HTTP 429 и начинают сбрасывать данные или уходить в бэкпрешер.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 0.01 }
+            ]
+          },
+          "unit": "errps"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(elasticsearch_thread_pool_rejected_count{type=\"write\",cluster=~\"$cluster\"}[2m])) or (0 * sum(elasticsearch_cluster_health_number_of_nodes{cluster=~\"$cluster\"}))",
+          "legendFormat": "Write Rejections / сек",
+          "refId": "A"
+        }
+      ],
+      "title": "Отклонения записи (Write Rejections / sec)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Максимальный процент заполнения диска среди data-нод. Пороги Elasticsearch: 85% (Low Watermark — прекращение аллокации новых шардов); 90% (High Watermark — принудительный перенос шардов); 95% (Flood Stage — перевод всех индексов в READ-ONLY!).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 85 },
+              { "color": "red", "value": 90 }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "max((1 - (elasticsearch_filesystem_data_available_bytes{cluster=~\"$cluster\"} / elasticsearch_filesystem_data_size_bytes{cluster=~\"$cluster\"})) * 100)",
+          "legendFormat": "Макс % Диска",
+          "refId": "A"
+        }
+      ],
+      "title": "Пиковое заполнение диска (% Disk Watermark)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "🧵 Пулы потоков и Отклонения (Thread Pools, Queues & Rejections)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Интенсивность отклонения задач (Rejections) в пулах потоков: write (индексация) и search (поиск). Появление отклонений означает, что размер очереди исчерпан и нода отбрасывает вызовы клиентов.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1 },
+          "unit": "errps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (name, type) (rate(elasticsearch_thread_pool_rejected_count{type=~\"write|search\",cluster=~\"$cluster\",name=~\"$es_node\"}[2m])) or (0 * sum(elasticsearch_cluster_health_number_of_nodes{cluster=~\"$cluster\"}))",
+          "legendFormat": "{{name}} ({{type}} rejected)",
+          "refId": "A"
+        }
+      ],
+      "title": "Отклонения задач в пулах потоков (Threadpool Rejections Rate)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Глубина очередей (Queue Size) в пулах write и search. По умолчанию лимит очереди write составляет 10000 задач. Рост очереди свидетельствует о том, что ввод-вывод или CPU не успевают фиксировать документы на диск.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "id": 8,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (name, type) (elasticsearch_thread_pool_queue_count{type=~\"write|search\",cluster=~\"$cluster\",name=~\"$es_node\"})",
+          "legendFormat": "{{name}} (Очередь {{type}})",
+          "refId": "A"
+        }
+      ],
+      "title": "Размер очередей задач (Threadpool Queue Backlog)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество активных параллельных потоков по типам операций (write, search, flush, refresh, generic). Показывает утилизацию процессорных ядер задачами Elasticsearch.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 14 },
+      "id": 9,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (type) (elasticsearch_thread_pool_active_count{cluster=~\"$cluster\",name=~\"$es_node\"})",
+          "legendFormat": "Активно потоков: {{type}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Активные потоки по пулам (Active Threads by Pool)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "id": 102,
+      "title": "☕ Память JVM, Сегменты Lucene и Сборка Мусора (Garbage Collection)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Процент утилизации кучи JVM (Heap Used %) по каждой ноде кластера. Позволяет мгновенно найти перегруженную ноду или ноду с утечкой памяти.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 75 },
+              { "color": "red", "value": 85 }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 23 },
+      "id": 10,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "(elasticsearch_jvm_memory_used_bytes{area=\"heap\",cluster=~\"$cluster\",name=~\"$es_node\"} / elasticsearch_jvm_memory_max_bytes{area=\"heap\",cluster=~\"$cluster\",name=~\"$es_node\"}) * 100",
+          "legendFormat": "Heap %: {{name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Утилизация JVM Heap по нодам (% Heap per Node)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Задержка пауз сборщика мусора (GC Stop-The-World) в секунду. Длинные паузы Old Generation сборщика (G1 Old Generation / CMS) замораживают ноду: она перестает отвечать мастеру на heartbeats и исключается из кластера.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 23 },
+      "id": 11,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (name, gc) (rate(elasticsearch_jvm_gc_collection_seconds_sum{cluster=~\"$cluster\",name=~\"$es_node\"}[2m]))",
+          "legendFormat": "GC время / сек: {{name}} ({{gc}})",
+          "refId": "A"
+        }
+      ],
+      "title": "Время пауз GC в секунду (GC Pause Duration / sec)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Память кучи, занятая метаданными сегментов Lucene (Segment Memory), кэшем фильтров (Query Cache) и кэшем аггрегаций (Fielddata Cache). Слишком большое число мелких шардов приводит к раздуванию памяти сегментов.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 31 },
+      "id": 12,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (name) (elasticsearch_indices_segments_memory_bytes{cluster=~\"$cluster\",name=~\"$es_node\"})",
+          "legendFormat": "Segments Memory: {{name}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (name) (elasticsearch_indices_query_cache_memory_size_bytes{cluster=~\"$cluster\",name=~\"$es_node\"})",
+          "legendFormat": "Query Cache: {{name}}",
+          "refId": "B"
+        },
+        {
+          "expr": "sum by (name) (elasticsearch_indices_fielddata_memory_size_bytes{cluster=~\"$cluster\",name=~\"$es_node\"})",
+          "legendFormat": "Fielddata Cache: {{name}}",
+          "refId": "C"
+        }
+      ],
+      "title": "Память структур Lucene и Кэшей (Lucene & Cache Memory)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Общее количество сегментов Lucene в индексах. Чем больше сегментов — тем выше расход памяти и медленнее поиск. Снижается с помощью фонового слияния или вызова _forcemerge.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 31 },
+      "id": 13,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (name) (elasticsearch_indices_segments_count{cluster=~\"$cluster\",name=~\"$es_node\"})",
+          "legendFormat": "Сегментов: {{name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Количество сегментов Lucene (Lucene Segments Count)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 39 },
+      "id": 103,
+      "title": "💽 Дисковая подсистема, Вотермарки и Слияние (Disk Watermarks & Merges)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Свободное место на дисках data-нод с пороговыми линиями вотермарков (85%, 90%, 95%). Достижение 95% переводит кластер в режим read-only (блокировка индексации).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "id": 14,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "elasticsearch_filesystem_data_available_bytes{cluster=~\"$cluster\",name=~\"$es_node\"}",
+          "legendFormat": "Свободно на диске: {{name}}",
+          "refId": "A"
+        },
+        {
+          "expr": "elasticsearch_filesystem_data_size_bytes{cluster=~\"$cluster\",name=~\"$es_node\"} * 0.15",
+          "legendFormat": "Порог Low Watermark (15% остатка): {{name}}",
+          "refId": "B"
+        },
+        {
+          "expr": "elasticsearch_filesystem_data_size_bytes{cluster=~\"$cluster\",name=~\"$es_node\"} * 0.05",
+          "legendFormat": "Порог Flood Stage (5% остатка): {{name}}",
+          "refId": "C"
+        }
+      ],
+      "title": "Свободное место vs Watermark Лимиты",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Интенсивность фонового слияния сегментов (Merge Rate) в байтах в секунду. Процесс слияния создает колоссальную нагрузку на дисковый I/O. Если диск медленный — слияние отстает и индексация принудительно троттлится.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "Bps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "id": 15,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (name) (rate(elasticsearch_indices_merges_total_size_bytes_total{cluster=~\"$cluster\",name=~\"$es_node\"}[2m]))",
+          "legendFormat": "Слияние сегментов: {{name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Скорость слияния сегментов (Segment Merges Rate Bps)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Средняя задержка операций Refresh (создание сегмента из памяти для видимости в поиске, по умолчанию раз в 1с) и Flush (фиксация транзакционного лога translog на диск bbolt/lucene).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 48 },
+      "id": 16,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum(rate(elasticsearch_indices_refresh_time_seconds_total{cluster=~\"$cluster\"}[2m])) / sum(rate(elasticsearch_indices_refresh_total{cluster=~\"$cluster\"}[2m])) > 0",
+          "legendFormat": "Средняя задержка Refresh",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(elasticsearch_indices_flush_time_seconds_total{cluster=~\"$cluster\"}[2m])) / sum(rate(elasticsearch_indices_flush_total{cluster=~\"$cluster\"}[2m])) > 0",
+          "legendFormat": "Средняя задержка Flush",
+          "refId": "B"
+        }
+      ],
+      "title": "Задержка операций Refresh и Flush (Lucene Synchronization)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 56 },
+      "id": 104,
+      "title": "🔍 Производительность Индексации и Поиска (Search & Indexing Performance)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Скорость индексации документов в секунду (Docs/sec) и среднее время индексации одного документа. Скачок времени индексации > 10-20ms означает перегрузку диска или CPU.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 57 },
+      "id": 17,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum(rate(elasticsearch_indices_indexing_index_total{cluster=~\"$cluster\"}[2m]))",
+          "legendFormat": "Документов индексируется / сек",
+          "refId": "A"
+        }
+      ],
+      "title": "Скорость индексации документов (Indexing Rate)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество поисковых запросов в секунду (Search QPS) и среднее время выполнения поискового запроса. Значения > 500ms приводят к таймаутам в дашбордах Kibana.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 57 },
+      "id": 18,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum(rate(elasticsearch_indices_search_query_time_seconds_total{cluster=~\"$cluster\"}[2m])) / sum(rate(elasticsearch_indices_search_query_total{cluster=~\"$cluster\"}[2m])) > 0",
+          "legendFormat": "Среднее время поиска (Query Latency)",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(elasticsearch_indices_search_fetch_time_seconds_total{cluster=~\"$cluster\"}[2m])) / sum(rate(elasticsearch_indices_search_fetch_total{cluster=~\"$cluster\"}[2m])) > 0",
+          "legendFormat": "Среднее время выборки (Fetch Latency)",
+          "refId": "B"
+        }
+      ],
+      "title": "Задержка поисковых запросов (Search Query & Fetch Latency)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Динамика перемещения шардов: Relocating (миграция между нодами при ребалансировке) и Initializing (восстановление шарда с диска или реплики). Всплески происходят при рестарте нод.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 65 },
+      "id": 19,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "elasticsearch_cluster_health_relocating_shards{cluster=~\"$cluster\"}",
+          "legendFormat": "Перемещаемых шардов (Relocating)",
+          "refId": "A"
+        },
+        {
+          "expr": "elasticsearch_cluster_health_initializing_shards{cluster=~\"$cluster\"}",
+          "legendFormat": "Инициализируемых шардов (Initializing)",
+          "refId": "B"
+        }
+      ],
+      "title": "Состояние ребалансировки шардов (Relocating & Initializing Shards)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 73 },
+      "id": 105,
+      "title": "🪵 Конвейер Logstash (Logstash Pipelines & Queue Backpressure)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Пропускная способность конвейеров Logstash: входящие события (In), прошедшие фильтрацию grok/mutate (Filtered) и успешно отправленные в Elasticsearch (Out).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 74 },
+      "id": 20,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum(rate(logstash_pipeline_events_in_total[2m])) or sum(rate(logstash_node_pipeline_events_in_total[2m]))",
+          "legendFormat": "Входящих событий / сек (In)",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(logstash_pipeline_events_filtered_total[2m])) or sum(rate(logstash_node_pipeline_events_filtered_total[2m]))",
+          "legendFormat": "Отфильтровано / сек (Filtered)",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(logstash_pipeline_events_out_total[2m])) or sum(rate(logstash_node_pipeline_events_out_total[2m]))",
+          "legendFormat": "Отправлено в ES / сек (Out)",
+          "refId": "C"
+        }
+      ],
+      "title": "События в конвейере Logstash (Events In vs Filtered vs Out)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество событий в постоянной очереди (Persistent Queue) Logstash. Рост очереди свидетельствует о бэкпрешере: Elasticsearch не успевает принимать данные (Write Rejections / Slow I/O).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1000 },
+              { "color": "red", "value": 10000 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 74 },
+      "id": 21,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (pipeline) (logstash_pipeline_queue_events_count) or sum by (pipeline) (logstash_node_pipeline_queue_events_count) or (0 * sum(rate(logstash_pipeline_events_in_total[2m])))",
+          "legendFormat": "Очередь пайплайна: {{pipeline}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Бэкпрешер и очередь Logstash (Persistent Queue Backlog)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Процент утилизации кучи JVM инстансами Logstash. При приближении к 90% воркеры фильтрации начинают зависать на GC паузах.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 75 },
+              { "color": "red", "value": 85 }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 82 },
+      "id": 22,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "logstash_node_jvm_mem_heap_used_percent or ((logstash_jvm_memory_used_bytes{area=\"heap\"} / logstash_jvm_memory_max_bytes{area=\"heap\"}) * 100)",
+          "legendFormat": "Logstash Heap %: {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Утилизация JVM Heap в Logstash (% Heap)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 90 },
+      "id": 106,
+      "title": "📊 Состояние и Производительность Kibana (Kibana Server & Web UI)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Статус доступности Kibana: 1 = Зеленый (доступна и подключена к Elasticsearch), 0 = Сбой (недоступна, потеря связи с ES cluster).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "0": { "color": "red", "text": "DOWN / ERROR" }, "1": { "color": "green", "text": "UP (AVAILABLE)" } }, "type": "value" }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 91 },
+      "id": 23,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "min(kibana_status{status=\"green\"}) or min(kibana_status == 1) or min(up{job=~\"kibana.*\"})",
+          "legendFormat": "Kibana Status",
+          "refId": "A"
+        }
+      ],
+      "title": "Доступность Kibana (Kibana Health Status)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Среднее время ответа HTTP сервера Kibana при запросах от браузеров пользователей и фоновых задачах отрисовки дашбордов.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 16, "x": 8, "y": 91 },
+      "id": 24,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "rate(kibana_response_time_seconds_sum[2m]) / rate(kibana_response_time_seconds_count[2m]) or (kibana_response_time_average_milliseconds / 1000)",
+          "legendFormat": "Среднее время ответа Kibana",
+          "refId": "A"
+        }
+      ],
+      "title": "Задержка HTTP ответов Kibana (Response Time)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["elk", "elasticsearch", "logstash", "kibana", "lucene", "troubleshooting", "sre"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "type": "datasource"
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "definition": "label_values(elasticsearch_cluster_health_number_of_nodes, cluster)",
+        "hide": 0,
+        "includeAll": true,
+        "multi": false,
+        "name": "cluster",
+        "query": {
+          "query": "label_values(elasticsearch_cluster_health_number_of_nodes, cluster)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "definition": "label_values(elasticsearch_jvm_memory_used_bytes, name)",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "es_node",
+        "query": {
+          "query": "label_values(elasticsearch_jvm_memory_used_bytes, name)",
+          "refId": "StandardVariableQuery2"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "ELK Stack / Elasticsearch, Logstash & Kibana Master Observability (RU)",
+  "uid": "elk-master-observability-ru",
+  "version": 1
+}

@@ -1,0 +1,797 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "📌 Золотые сигналы и Статус ReplicaSet (Cluster Health & Saturation)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Статус процесса mongod: 1 = UP, 0 = DOWN.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "min by (instance) (mongodb_up{instance=~\"$instance\"})",
+          "legendFormat": "Статус инстанса",
+          "refId": "A"
+        }
+      ],
+      "title": "Доступность mongod (Instance UP)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Текущая роль ноды в ReplicaSet: 1 = PRIMARY (Мастер записи), 2 = SECONDARY (Реплика чтения), 7 = ARBITER.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "PRIMARY" }, "2": { "color": "blue", "text": "SECONDARY" }, "7": { "color": "purple", "text": "ARBITER" } }, "type": "value" }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "max by (instance) (mongodb_mongod_replset_my_state{instance=~\"$instance\"})",
+          "legendFormat": "Роль: {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Роль узла (ReplicaSet Role)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Максимальный лаг репликации данных среди всех вторичных узлов (Secondary) в секундах. Норма: < 2-5s. Значения > 30s означают деградацию сети или перегрузку диска реплики.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 30 }
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "max(mongodb_mongod_replset_member_replication_lag{instance=~\"$instance\"}) or vector(0)",
+          "legendFormat": "Макс лаг репликации",
+          "refId": "A"
+        }
+      ],
+      "title": "Макс Лаг Репликации (Replication Lag)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Запас времени скользящего окна Oplog в часах. Показывает, сколько времени узел может находиться в оффлайне без выпадения из кластера. Если лаг репликации превысит размер окна Oplog — реплика упадет в неустранимый сбой.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 12 },
+              { "color": "green", "value": 24 }
+            ]
+          },
+          "unit": "h"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "min((mongodb_mongod_replset_oplog_head_timestamp{instance=~\"$instance\"} - mongodb_mongod_replset_oplog_tail_timestamp{instance=~\"$instance\"}) / 3600) or vector(0)",
+          "legendFormat": "Окно Oplog (ч)",
+          "refId": "A"
+        }
+      ],
+      "title": "Окно Oplog (Oplog Headroom)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Минимум доступных тикетов на чтение и запись WiredTiger (по умолчанию пул = 128). Падение значения до 0 означает полную парализацию базы: новые запросы выстраиваются в очередь блокировок.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 30 },
+              { "color": "green", "value": 70 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "min(mongodb_ss_wt_concurrentTransactions_read_available{instance=~\"$instance\"})",
+          "legendFormat": "Read Tickets",
+          "refId": "A"
+        },
+        {
+          "expr": "min(mongodb_ss_wt_concurrentTransactions_write_available{instance=~\"$instance\"})",
+          "legendFormat": "Write Tickets",
+          "refId": "B"
+        }
+      ],
+      "title": "Доступные WiredTiger Tickets (Read / Write)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Процент использования клиентских соединений от установленного лимита maxIncomingConnections. Значения > 85% означают риск отклонения новых подключений приложением.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 75 },
+              { "color": "red", "value": 85 }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "(max(mongodb_ss_connections_current{instance=~\"$instance\"}) / (max(mongodb_ss_connections_current{instance=~\"$instance\"}) + max(mongodb_ss_connections_available{instance=~\"$instance\"}))) * 100",
+          "legendFormat": "% Соединений",
+          "refId": "A"
+        }
+      ],
+      "title": "Утилизация пула соединений (% Conn)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "🔄 Операции, Запросы и Очереди Блокировок (Throughput & Contention)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Интенсивность выполнения операций по типам (Opcounters: query, insert, update, delete, getmore, command) в запросах в секунду.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "stacking": { "group": "A", "mode": "normal" } },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (type) (rate(mongodb_ss_opcounters_total{instance=~\"$instance\"}[2m]))",
+          "legendFormat": "Операция: {{type}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Интенсивность операций (Opcounters Rate)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество клиентских запросов, ожидающих захвата блокировки на чтение и запись (GlobalLock Queue). Норма: строго 0. Рост очереди означает взаимную блокировку коллекций или долгие операции.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 10 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "id": 8,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (instance) (mongodb_ss_globalLock_currentQueue_readers{instance=~\"$instance\"})",
+          "legendFormat": "Очередь чтения (Readers): {{instance}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (instance) (mongodb_ss_globalLock_currentQueue_writers{instance=~\"$instance\"})",
+          "legendFormat": "Очередь записи (Writers): {{instance}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Очередь ожидания блокировок (Lock Queue: Readers / Writers)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Эффективность индексов: соотношение количества просканированных документов (Scanned) к реально возвращенным клиенту (Returned). Если отношение > 100 — в базе выполняются тяжелые запросы без индексов (COLLSCAN).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "id": 9,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "rate(mongodb_ss_metrics_queryExecutor_scanned_total{instance=~\"$instance\"}[2m])",
+          "legendFormat": "Просканировано документов (Scanned): {{instance}}",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(mongodb_ss_metrics_document_total{type=\"returned\",instance=~\"$instance\"}[2m])",
+          "legendFormat": "Возвращено документов (Returned): {{instance}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Эффективность индексов (Scanned vs Returned Documents)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество активных клиентов, выполняющих операции прямо сейчас (Active Clients). Показывает текущий параллелизм рабочих нагрузок.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "id": 10,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (instance) (mongodb_ss_globalLock_activeClients_readers{instance=~\"$instance\"})",
+          "legendFormat": "Активное чтение: {{instance}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (instance) (mongodb_ss_globalLock_activeClients_writers{instance=~\"$instance\"})",
+          "legendFormat": "Активная запись: {{instance}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Активные параллельные клиенты (Active Clients Readers / Writers)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "id": 102,
+      "title": "🧠 WiredTiger Кэш, Память и Тикеты (WT Engine & Cache Contention)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Остаток свободных тикетов параллельных транзакций WiredTiger. Если тикеты падают до 0 — входящие вызовы приложений замораживаются.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 30 },
+              { "color": "green", "value": 70 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 23 },
+      "id": 11,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "mongodb_ss_wt_concurrentTransactions_read_available{instance=~\"$instance\"}",
+          "legendFormat": "Read Tickets: {{instance}}",
+          "refId": "A"
+        },
+        {
+          "expr": "mongodb_ss_wt_concurrentTransactions_write_available{instance=~\"$instance\"}",
+          "legendFormat": "Write Tickets: {{instance}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Доступные тикеты WiredTiger (Available Tickets: Read & Write)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Утилизация оперативной памяти кэшем WiredTiger: занято байт в кэше vs сконфигурированный максимум памяти кэша (по умолчанию 50% RAM минус 1GB).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 23 },
+      "id": 12,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "mongodb_ss_wt_cache_bytes_currently_in_cache{instance=~\"$instance\"}",
+          "legendFormat": "Занято в кэше: {{instance}}",
+          "refId": "A"
+        },
+        {
+          "expr": "mongodb_ss_wt_cache_maximum_bytes_configured{instance=~\"$instance\"}",
+          "legendFormat": "Сконфигурированный лимит кэша: {{instance}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Память кэша WiredTiger (Cache Used vs Max Limit)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Процент 'грязных' данных в кэше WiredTiger (модифицированных, но еще не сброшенных на диск). Порог WiredTiger: при > 20% к сбросу принудительно подключаются клиентские потоки приложений, вызывая фризы.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2 },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 20 }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 31 },
+      "id": 13,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "(mongodb_ss_wt_cache_tracked_dirty_bytes{instance=~\"$instance\"} / mongodb_ss_wt_cache_maximum_bytes_configured{instance=~\"$instance\"}) * 100",
+          "legendFormat": "Dirty Cache %: {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Грязные данные в кэше (% WiredTiger Dirty Cache)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Вытеснение страниц из кэша. В норме вытеснение выполняется фоновыми потоками (Background Workers). Появление страниц, вытесненных потоками приложений (Evicted by Application Threads), означает тяжелый кризис кэша и блокировку запросов.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 31 },
+      "id": 14,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (instance) (rate(mongodb_ss_wt_cache_pages_evicted_by_application_threads_total{instance=~\"$instance\"}[2m]))",
+          "legendFormat": "КРИТИЧНО: Evicted by App Threads: {{instance}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (instance) (rate(mongodb_ss_wt_cache_pages_evicted_by_threads_total{instance=~\"$instance\"}[2m]))",
+          "legendFormat": "Фоновое вытеснение (Workers): {{instance}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Вытеснение страниц кэша (Background Workers vs Application Threads)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 39 },
+      "id": 103,
+      "title": "⏱️ Репликация, Oplog и Здоровье Узлов ReplicaSet",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Лаг репликации в секундах раздельно по каждому участнику ReplicaSet.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "id": 15,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "mongodb_mongod_replset_member_replication_lag{instance=~\"$instance\"}",
+          "legendFormat": "Лаг: {{member}} (на {{instance}})",
+          "refId": "A"
+        }
+      ],
+      "title": "Лаг репликации по узлам (Replication Lag per Member)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Запас времени окна Oplog в часах. Показывает темп сжатия истории операций. Если график резко падает — в кластере идет массовая модифицирующая нагрузка (bulk insert / update).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 12 },
+              { "color": "green", "value": 24 }
+            ]
+          },
+          "unit": "h"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "id": 16,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "(mongodb_mongod_replset_oplog_head_timestamp{instance=~\"$instance\"} - mongodb_mongod_replset_oplog_tail_timestamp{instance=~\"$instance\"}) / 3600",
+          "legendFormat": "Окно Oplog (ч): {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Динамика размера окна Oplog (Oplog Window Duration)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Статус здоровья всех участников ReplicaSet: 1 = Здоров (Healthy), 0 = Недоступен (Unhealthy). При падении в 0 кластер начинает выборы нового лидера.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "0": { "color": "red", "text": "UNHEALTHY" }, "1": { "color": "green", "text": "HEALTHY" } }, "type": "value" }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 48 },
+      "id": 17,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "mongodb_mongod_replset_member_health{instance=~\"$instance\"}",
+          "legendFormat": "Узел {{member}} (наблюдатель: {{instance}})",
+          "refId": "A"
+        }
+      ],
+      "title": "Здоровье участников кластера ReplicaSet (Member Health Matrix)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 56 },
+      "id": 104,
+      "title": "🌐 Соединения, Сетевой Трафик и Курсоры (Connections & Cursors)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Текущее количество открытых клиентских соединений (Current) в сравнении с доступным лимитом (Available).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 57 },
+      "id": 18,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "mongodb_ss_connections_current{instance=~\"$instance\"}",
+          "legendFormat": "Активных соединений: {{instance}}",
+          "refId": "A"
+        },
+        {
+          "expr": "mongodb_ss_connections_available{instance=~\"$instance\"}",
+          "legendFormat": "Доступно до лимита: {{instance}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Пул клиентских соединений (Connections Current vs Available)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Сетевой входящий и исходящий трафик MongoDB в байтах в секунду.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "Bps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 57 },
+      "id": 19,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (instance) (rate(mongodb_ss_network_bytesIn_total{instance=~\"$instance\"}[2m]))",
+          "legendFormat": "Входящий (Rx): {{instance}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (instance) (rate(mongodb_ss_network_bytesOut_total{instance=~\"$instance\"}[2m]))",
+          "legendFormat": "Исходящий (Tx): {{instance}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Сетевой трафик MongoDB (Network In / Out Bps)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Мониторинг курсоров: открытые курсоры (Open Total), курсоры без таймаута (noTimeout) и таймауты курсоров в секунду. Постоянный рост курсоров noTimeout указывает на утечку в коде приложения.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 57 },
+      "id": 20,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "mongodb_ss_metrics_cursor_open{state=\"total\",instance=~\"$instance\"}",
+          "legendFormat": "Открыто курсоров: {{instance}}",
+          "refId": "A"
+        },
+        {
+          "expr": "mongodb_ss_metrics_cursor_open{state=\"noTimeout\",instance=~\"$instance\"}",
+          "legendFormat": "Курсоров без таймаута: {{instance}}",
+          "refId": "B"
+        },
+        {
+          "expr": "rate(mongodb_ss_metrics_cursor_timedOut_total{instance=~\"$instance\"}[2m])",
+          "legendFormat": "Таймаутов курсоров / сек: {{instance}}",
+          "refId": "C"
+        }
+      ],
+      "title": "Курсоры и Утечки (Open & NoTimeout Cursors)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 65 },
+      "id": 105,
+      "title": "💽 Дисковая Подсистема, Контрольные Точки и Размер БД (Storage & I/O)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Длительность создания контрольной точки WiredTiger (Checkpoint Duration). В норме чекпоинт проходит раз в 60с и занимает < 2-5с. Если чекпоинт длится > 30-40с — диск находится в критической перегрузке.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1 },
+          "unit": "ms"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 66 },
+      "id": 21,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "mongodb_ss_wt_checkpoint_last_duration_time_ms{instance=~\"$instance\"} or (rate(mongodb_ss_wt_checkpoint_time_milliseconds_sum{instance=~\"$instance\"}[2m]) / rate(mongodb_ss_wt_checkpoint_time_milliseconds_count{instance=~\"$instance\"}[2m]))",
+          "legendFormat": "Checkpoint Duration: {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Длительность контрольных точек WiredTiger (Checkpoint Duration)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Объем полезных данных (Data Size), размер индексов (Index Size) и физически занятое место на диске (Storage Size). Разница между Storage Size и Data Size показывает объем фрагментации.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 66 },
+      "id": 22,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum(mongodb_dbstats_dataSize{instance=~\"$instance\"})",
+          "legendFormat": "Полезный объем данных (Data Size)",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(mongodb_dbstats_indexSize{instance=~\"$instance\"})",
+          "legendFormat": "Размер индексов (Index Size)",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(mongodb_dbstats_storageSize{instance=~\"$instance\"})",
+          "legendFormat": "Физически занято на диске (Storage Size)",
+          "refId": "C"
+        }
+      ],
+      "title": "Размер данных, индексов и хранилища (Data vs Index vs Storage Size)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["mongodb", "database", "wiredtiger", "replicaset", "oplog", "troubleshooting", "sre"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "type": "datasource"
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "definition": "label_values({__name__=~\"mongodb_up|mongodb_ss_connections_current\"}, instance)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Instance",
+        "multi": true,
+        "name": "instance",
+        "query": {
+          "query": "label_values({__name__=~\"mongodb_up|mongodb_ss_connections_current\"}, instance)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "MongoDB / Master Deep Observability & Troubleshooting (RU)",
+  "uid": "mongodb-master-deep-observability-ru",
+  "version": 1
+}

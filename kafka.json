@@ -1,0 +1,804 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "📌 Золотые сигналы и Здоровье Кластера (Golden Signals & Health)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество активных контроллеров в кластере. Во всем кластере ровно один брокер должен иметь значение 1, остальные — 0. Если сумма = 0 или > 1 — кластер находится в состоянии аварии/выборов (Split-Brain).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "0": { "color": "red", "text": "НЕТ КОНТРОЛЛЕРА" }, "1": { "color": "green", "text": "1 (OK)" } }, "type": "value" }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 },
+              { "color": "red", "value": 2 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(kafka_controller_kafkacontroller_activecontrollercount) or sum(kafka_controller_active_controller_count) or vector(1)",
+          "legendFormat": "Активный контроллер",
+          "refId": "A"
+        }
+      ],
+      "title": "Активный Контроллер (Active Controller)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество партиций без назначенного брокера-лидера. Должно быть строго 0! Любое значение > 0 означает полную недоступность партиции для чтения и записи.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "max(kafka_controller_kafkacontroller_offlinepartitionscount) or max(kafka_controller_offline_partitions_count) or vector(0)",
+          "legendFormat": "Offline Partitions",
+          "refId": "A"
+        }
+      ],
+      "title": "Оффлайн Партиции (Offline Partitions)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество недореплицированных партиций (число реплик в ISR меньше фактора репликации). Норма: строго 0. Любой рост означает отставание фолловеров от лидера.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(kafka_server_replicamanager_underreplicatedpartitions{instance=~\"$instance\"}) or sum(kafka_server_replica_manager_under_replicated_partitions{instance=~\"$instance\"}) or vector(0)",
+          "legendFormat": "Under-replicated",
+          "refId": "A"
+        }
+      ],
+      "title": "Недореплицированные (Under-Replicated)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество партиций, где число доступных реплик в ISR упало ниже параметра min.insync.replicas. При значении > 0 запись с acks=all блокируется с ошибкой NotEnoughReplicasException.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(kafka_server_replicamanager_undermin_isrpartitioncount{instance=~\"$instance\"}) or sum(kafka_server_replica_manager_under_min_isr_partition_count{instance=~\"$instance\"}) or vector(0)",
+          "legendFormat": "Under min ISR",
+          "refId": "A"
+        }
+      ],
+      "title": "Нарушение Min ISR (Under Min ISR)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Процент простоя сетевых процессоров Network Processor (принимают и парсят TCP-сокеты клиентов). Норма: > 50-60%. Значения < 30% означают, что сетевые потоки перегружены.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 30 },
+              { "color": "green", "value": 50 }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "min(kafka_network_socketserver_networkprocessoravgidlepercent{instance=~\"$instance\"}) * 100 or min(kafka_network_socket_server_network_processor_avg_idle_percent{instance=~\"$instance\"}) * 100",
+          "legendFormat": "Network Processor Idle %",
+          "refId": "A"
+        }
+      ],
+      "title": "Network Processor Idle %",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Процент простоя пула обработчиков запросов Request Handler (выполняют чтение и запись в локальные файлы логов). Значения < 30% означают дефицит потоков или упор в дисковый I/O.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 30 },
+              { "color": "green", "value": 50 }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "min(kafka_server_kafkarequesthandlerpool_requesthandleravgidlepercent_total{instance=~\"$instance\"}) * 100 or min(kafka_server_kafka_request_handler_pool_request_handler_avg_idle_percent{instance=~\"$instance\"}) * 100",
+          "legendFormat": "Request Handler Idle %",
+          "refId": "A"
+        }
+      ],
+      "title": "Request Handler Idle %",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "⚖️ Балансировка Партиций, Контроллер и Репликация (Partitions & ISR)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Распределение общего количества партиций и партиций-лидеров (Leader Partitions) по брокерам. Значительный перекос указывает на неравномерное распределение нагрузки в кластере.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "kafka_server_replicamanager_leadercount{instance=~\"$instance\"} or kafka_server_replica_manager_leader_count{instance=~\"$instance\"}",
+          "legendFormat": "Лидеров на брозере: {{instance}}",
+          "refId": "A"
+        },
+        {
+          "expr": "kafka_server_replicamanager_partitioncount{instance=~\"$instance\"} or kafka_server_replica_manager_partition_count{instance=~\"$instance\"}",
+          "legendFormat": "Всего партиций: {{instance}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Партиции и Лидеры по брокерам (Leader vs Total Partitions)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Динамика сжатия (Shrink) и расширения (Expand) списков синхронных реплик ISR в секунду. В стабильном кластере графики должны быть равны нулю. Всплески — признак сетевых лагов или I/O фризов на брокерах.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 50, "lineWidth": 1 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "id": 8,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (instance) (rate(kafka_server_replicamanager_isrmshrinks_total{instance=~\"$instance\"}[2m])) or sum by (instance) (rate(kafka_server_replica_manager_isr_shrinks_total{instance=~\"$instance\"}[2m]))",
+          "legendFormat": "ISR Shrinks (Выпадения): {{instance}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (instance) (rate(kafka_server_replicamanager_isrexpands_total{instance=~\"$instance\"}[2m])) or sum by (instance) (rate(kafka_server_replica_manager_isr_expands_total{instance=~\"$instance\"}[2m]))",
+          "legendFormat": "ISR Expands (Возвращения): {{instance}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Флаппинг ISR: Сжатие и Расширение (ISR Shrinks vs Expands)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Смены контроллера кластера за последний час и частота перевыборов лидеров партиций (Leader Election Rate). Частые выборы дестабилизируют метаданные клиентов.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 14 },
+      "id": 9,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum(changes(kafka_controller_kafkacontroller_activecontrollercount[1h])) or sum(changes(kafka_controller_active_controller_count[1h]))",
+          "legendFormat": "Смен контроллера за час",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(kafka_controller_controllerstats_leaderelectionrateandtimems_count[2m])) or sum(rate(kafka_controller_controller_stats_leader_election_rate_and_time_ms_count[2m]))",
+          "legendFormat": "Выборов лидера партиций / сек",
+          "refId": "B"
+        }
+      ],
+      "title": "Смены Контроллера и Перевыборы Лидеров (Controller Flaps & Elections)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "id": 102,
+      "title": "🚀 Пропускная способность, Сообщения и Трафик (Throughput & Topics)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Входящий сетевой трафик от продюсеров (Bytes In) и исходящий сетевой трафик к консьюмерам и репликам (Bytes Out) в байтах в секунду по брокерам.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "Bps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 23 },
+      "id": 10,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (instance) (rate(kafka_server_brokertopicmetrics_bytesin_total{instance=~\"$instance\",topic=\"\"}[2m])) or sum by (instance) (rate(kafka_server_brokertopicmetrics_bytesinpersec{instance=~\"$instance\"}[2m]))",
+          "legendFormat": "Bytes In: {{instance}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (instance) (rate(kafka_server_brokertopicmetrics_bytesout_total{instance=~\"$instance\",topic=\"\"}[2m])) or sum by (instance) (rate(kafka_server_brokertopicmetrics_bytesoutpersec{instance=~\"$instance\"}[2m]))",
+          "legendFormat": "Bytes Out: {{instance}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Сетевой трафик брокеров (Bytes In vs Bytes Out)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Интенсивность входящих сообщений от продюсеров (Messages In / sec) по каждому брокеру.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "ops"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 23 },
+      "id": 11,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (instance) (rate(kafka_server_brokertopicmetrics_messagesin_total{instance=~\"$instance\",topic=\"\"}[2m])) or sum by (instance) (rate(kafka_server_brokertopicmetrics_messagesinpersec{instance=~\"$instance\"}[2m]))",
+          "legendFormat": "Сообщений/сек: {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Интенсивность сообщений (Messages In / sec per Broker)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Топ-10 самых нагруженных топиков по объему входящего трафика (Bytes In). Позволяет мгновенно выявить топик, создающий пиковую нагрузку на кластер.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "Bps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 31 },
+      "id": 12,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (topic) (rate(kafka_server_brokertopicmetrics_bytesin_total{topic!=\"\",topic=~\"$topic\"}[2m])))",
+          "legendFormat": "Топик: {{topic}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Топ-10 Топиков по Входящему Трафику (Top Topics Bytes In)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 39 },
+      "id": 103,
+      "title": "⏱️ Задержки Запросов, Очереди и Пулы Потоков (Request Latencies & Queues)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Сквозное 99-й перцентиль времени выполнения запросов клиентов: Produce (запись сообщений продюсерами) и FetchConsumer (вычитка консьюмерами).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "ms"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "id": 13,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "max by (instance) (kafka_network_requestmetrics_totaltimems{request=\"Produce\",instance=~\"$instance\",quantile=\"0.99\"})",
+          "legendFormat": "P99 Produce Time: {{instance}}",
+          "refId": "A"
+        },
+        {
+          "expr": "max by (instance) (kafka_network_requestmetrics_totaltimems{request=\"FetchConsumer\",instance=~\"$instance\",quantile=\"0.99\"})",
+          "legendFormat": "P99 Fetch Consumer: {{instance}}",
+          "refId": "B"
+        }
+      ],
+      "title": "P99 Сквозная Задержка Запросов (Produce & Fetch TotalTimeMs)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Время ожидания запросов в очереди до того, как свободный поток Request Handler возьмет их в обработку (RequestQueueTimeMs P99). Норма: < 5-10ms. Рост графика означает нехватку потоков num.io.threads.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 50 }
+            ]
+          },
+          "unit": "ms"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "id": 14,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "max by (instance) (kafka_network_requestmetrics_requestqueuetimems{instance=~\"$instance\",quantile=\"0.99\"})",
+          "legendFormat": "P99 Request Queue Time: {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Время ожидания в очереди запросов (Request Queue Wait Latency)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Процент простоя пулов потоков: Network Processor (сеть) и Request Handler (дисковый ввод-вывод). Если оба графика падают ниже 30% — брокер упирается в системные ресурсы хоста.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "max": 100,
+          "min": 0,
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 48 },
+      "id": 15,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "min by (instance) (kafka_network_socketserver_networkprocessoravgidlepercent{instance=~\"$instance\"}) * 100",
+          "legendFormat": "Network Processor Idle %: {{instance}}",
+          "refId": "A"
+        },
+        {
+          "expr": "min by (instance) (kafka_server_kafkarequesthandlerpool_requesthandleravgidlepercent_total{instance=~\"$instance\"}) * 100",
+          "legendFormat": "Request Handler Idle %: {{instance}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Праздность пулов потоков (Network Processor vs Request Handler Idle %)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 56 },
+      "id": 104,
+      "title": "👥 Лаг Потребителей и Группы (Consumer Groups Lag & Backlog)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Топ-10 групп потребителей по суммарному отставанию (Lag в количестве сообщений). Показывает консьюмеров, которые не успевают вычитывать поток входящих данных.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5000 },
+              { "color": "red", "value": 50000 }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 57 },
+      "id": 16,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (consumergroup) (kafka_consumergroup_lag{consumergroup=~\"$consumergroup\"})) or topk(10, sum by (consumergroup) (kafka_consumergroup_lag_sum{consumergroup=~\"$consumergroup\"}))",
+          "legendFormat": "Группа: {{consumergroup}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Топ групп по общему лагу (Top Lagging Consumer Groups)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Детализация отставания по конкретным партициям для выбранной группы потребителей. Позволяет выявить отдельную застрявшую партицию из-за проблемного сообщения (poison pill).",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1 },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 57 },
+      "id": 17,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (topic, partition) (kafka_consumergroup_lag{consumergroup=~\"$consumergroup\",topic=~\"$topic\"}))",
+          "legendFormat": "{{topic}} [Part: {{partition}}]",
+          "refId": "A"
+        }
+      ],
+      "title": "Лаг по партициям топиков (Partition Lag Breakdown)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 65 },
+      "id": 105,
+      "title": "💽 Дисковая Подсистема, Сегменты и Сброс на Диск (Storage & Log Flush)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "P99 времени сброса сегментов логов на диск (Log Flush Time ms). Значения > 50-100ms означают исчерпание IOPS физического накопителя брокера.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 20 },
+              { "color": "red", "value": 100 }
+            ]
+          },
+          "unit": "ms"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 66 },
+      "id": 18,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "max by (instance) (kafka_log_logflushstats_logflushtime_ms{instance=~\"$instance\",quantile=\"0.99\"}) or max by (instance) (kafka_log_log_flush_stats_log_flush_time_ms{instance=~\"$instance\",quantile=\"0.99\"})",
+          "legendFormat": "P99 Flush Time: {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Задержка сброса сегментов логов на диск (Log Flush Time ms)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Свободное место на дисковых разделах, где хранятся логи Kafka (log.dirs). Достижение 90-95% приводит к аварийной остановке брокера.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 21474836480 },
+              { "color": "green", "value": 53687091200 }
+            ]
+          },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 66 },
+      "id": 19,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "min by (instance) (node_filesystem_avail_bytes{mountpoint=~\"/var/lib/kafka.*|/kafka.*|/data.*\"})",
+          "legendFormat": "Свободно на диске: {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Свободное место на дисках брокеров (Host FS Free for log.dirs)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 74 },
+      "id": 106,
+      "title": "☕ Системные Ресурсы JVM, Сборка Мусора и Лимиты ОС (Runtime & Saturation)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Утилизация оперативной памяти JVM Heap брокеров (Used vs Max). В отличие от баз данных, Kafka не требует гигантской кучи (обычно 6-10GB), отдавая остальную RAM под системный Page Cache ядра Linux.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2 },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 75 },
+      "id": 20,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (instance) (jvm_memory_bytes_used{area=\"heap\",instance=~\"$instance\"})",
+          "legendFormat": "Heap Used: {{instance}}",
+          "refId": "A"
+        },
+        {
+          "expr": "max by (instance) (jvm_memory_bytes_max{area=\"heap\",instance=~\"$instance\"})",
+          "legendFormat": "Heap Max: {{instance}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Память JVM Heap (Used vs Max)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Суммарное время пауз сборщика мусора (GC Stop-The-World) в секунду. Длинные паузы G1GC (> 1-2s) приводят к тому, что Zookeeper / KRaft считает брокер мертвым и запускает лавинообразные выборы лидеров.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 75 },
+      "id": 21,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (instance) (rate(jvm_gc_collection_seconds_sum{instance=~\"$instance\"}[2m]))",
+          "legendFormat": "GC Pause / sec: {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Время пауз GC в секунду (GC Pause Duration / sec)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Количество открытых файловых дескрипторов процесса Kafka в сопоставлении с системным лимитом ядра. Каждый сегмент лога и TCP-сокет требует дескриптора. Исчерпание лимита приводит к сбою брокера.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2 },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 75 },
+      "id": 22,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "process_open_fds{instance=~\"$instance\"}",
+          "legendFormat": "Открыто FDs: {{instance}}",
+          "refId": "A"
+        },
+        {
+          "expr": "process_max_fds{instance=~\"$instance\"}",
+          "legendFormat": "Лимит Max FDs: {{instance}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Файловые дескрипторы (Open FDs vs Max Limit)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["kafka", "streaming", "messaging", "queues", "brokers", "sre", "troubleshooting"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "type": "datasource"
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "definition": "label_values({__name__=~\"kafka_server_replicamanager_leadercount|kafka_server_replica_manager_leader_count|kafka_brokers\"}, instance)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Broker Instance",
+        "multi": true,
+        "name": "instance",
+        "query": {
+          "query": "label_values({__name__=~\"kafka_server_replicamanager_leadercount|kafka_server_replica_manager_leader_count|kafka_brokers\"}, instance)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "definition": "label_values(kafka_server_brokertopicmetrics_bytesin_total{topic!=\"\"}, topic)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Topic",
+        "multi": true,
+        "name": "topic",
+        "query": {
+          "query": "label_values(kafka_server_brokertopicmetrics_bytesin_total{topic!=\"\"}, topic)",
+          "refId": "StandardVariableQuery2"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "definition": "label_values(kafka_consumergroup_lag, consumergroup) or label_values(kafka_consumergroup_lag_sum, consumergroup)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Consumer Group",
+        "multi": true,
+        "name": "consumergroup",
+        "query": {
+          "query": "label_values(kafka_consumergroup_lag, consumergroup) or label_values(kafka_consumergroup_lag_sum, consumergroup)",
+          "refId": "StandardVariableQuery3"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Apache Kafka / Master Deep Observability & Troubleshooting (RU)",
+  "uid": "kafka-master-deep-observability-ru",
+  "version": 1
+}

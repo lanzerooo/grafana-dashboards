@@ -1,0 +1,802 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "🧭 Сводная Инженерная Матрица Здоровья Инфраструктуры (Master Incident Matrix)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Интерактивная сводная таблица статусов всех 22 сервисов. Сортируется по критичности: сервисы со сбоями (🔴) и предупреждениями (🟡) автоматически всплывают наверх.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": {
+            "align": "auto",
+            "cellOptions": { "mode": "basic", "type": "color-background" }
+          },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 ОК (ШТАТНО)" }, "2": { "color": "semi-dark-yellow", "text": "🟡 ПРЕДУПРЕЖДЕНИЕ" }, "3": { "color": "red", "text": "🔴 АВАРИЯ / СБОЙ" } }, "type": "value" }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "semi-dark-yellow", "value": 2 },
+              { "color": "red", "value": 3 }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Metric" },
+            "properties": [{ "id": "displayName", "value": "Компонент / Сервис" }, { "id": "custom.cellOptions", "value": { "type": "auto" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Value" },
+            "properties": [{ "id": "displayName", "value": "Статус Светофора" }]
+          }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 1 },
+      "id": 1,
+      "options": {
+        "footer": { "countRows": false, "enablePagination": true, "fields": "", "reducer": ["mean"], "show": false },
+        "showHeader": true,
+        "sortBy": [{ "desc": true, "displayName": "Статус Светофора" }]
+      },
+      "targets": [
+        { "expr": "label_replace((min(probe_success) == 0) * 3 or (max(probe_duration_seconds) > 1.5) * 2 or 1, \"service\", \"01. Blackbox Probes\", \"\", \"\")", "format": "table", "instant": true, "legendFormat": "", "refId": "A" },
+        { "expr": "label_replace((min(nginx_up) == 0 or (sum(rate(nginx_ingress_controller_requests{status=~\"5..\"}[2m])) / sum(rate(nginx_ingress_controller_requests[2m]))) * 100 > 2) * 3 or ((sum(rate(nginx_ingress_controller_requests{status=~\"5..\"}[2m])) / sum(rate(nginx_ingress_controller_requests[2m]))) * 100 > 0.5) * 2 or 1, \"service\", \"02. Nginx Ingress Edge\", \"\", \"\")", "format": "table", "instant": true, "legendFormat": "", "refId": "B" },
+        { "expr": "label_replace(((sum(rate(istio_requests_total{source_workload=~\".*ingress.*\",response_code=~\"5..\"}[2m])) / sum(rate(istio_requests_total{source_workload=~\".*ingress.*\"}[2m]))) * 100 > 2) * 3 or (sum(rate(istio_requests_total{source_workload=~\".*ingress.*\",response_flags=~\"UH|UF|UO\"}[2m])) > 0.5) * 2 or 1, \"service\", \"03. Istio Ingress Gateway\", \"\", \"\")", "format": "table", "instant": true, "legendFormat": "", "refId": "C" },
+        { "expr": "label_replace((min((certmanager_certificate_expiration_timestamp_seconds - time()) / 86400) < 7 or min(envoy_server_days_until_first_cert_expiring) < 7) * 3 or (min((certmanager_certificate_expiration_timestamp_seconds - time()) / 86400) < 21 or min(envoy_server_days_until_first_cert_expiring) < 21) * 2 or 1, \"service\", \"04. SSL / TLS Сертификаты\", \"\", \"\")", "format": "table", "instant": true, "legendFormat": "", "refId": "D" },
+        { "expr": "label_replace(((sum(rate(apiserver_request_total{code=~\"5..\"}[2m])) / sum(rate(apiserver_request_total[2m]))) * 100 > 1) * 3 or (histogram_quantile(0.99, sum by (le)(rate(apiserver_request_duration_seconds_bucket{subresource!=\"log\",verb!~\"WATCH|CONNECT\"}[2m]))) > 1) * 2 or 1, \"service\", \"05. K8s API Server\", \"\", \"\")", "format": "table", "instant": true, "legendFormat": "", "refId": "E" },
+        { "expr": "label_replace((min(etcd_server_has_leader) == 0 or sum(etcd_server_alarm_state) > 0 or ((max(etcd_mvcc_db_total_size_in_bytes) / max(etcd_server_quota_backend_bytes)) * 100 > 92)) * 3 or (histogram_quantile(0.99, sum by (le)(rate(etcd_disk_wal_fsync_duration_seconds_bucket[2m]))) > 0.015 or sum(changes(etcd_server_leader_changes_seen_total[1h])) > 0 or ((max(etcd_mvcc_db_total_size_in_bytes) / max(etcd_server_quota_backend_bytes)) * 100 > 80)) * 2 or 1, \"service\", \"06. etcd Storage Cluster\", \"\", \"\")", "format": "table", "instant": true, "legendFormat": "", "refId": "F" },
+        { "expr": "label_replace(((sum(rate(coredns_dns_responses_total{rcode=~\"SERVFAIL|REFUSED\"}[2m])) / sum(rate(coredns_dns_responses_total[2m]))) * 100 > 1) * 3 or (histogram_quantile(0.99, sum by (le)(rate(coredns_dns_request_duration_seconds_bucket[2m]))) > 0.03) * 2 or 1, \"service\", \"07. CoreDNS Resolution\", \"\", \"\")", "format": "table", "instant": true, "legendFormat": "", "refId": "G" },
+        { "expr": "label_replace((min(calico_bird_bgp_peering_state) == 0 or (sum(calico_ipam_allocated_ips) / sum(calico_ipam_max_ips)) * 100 > 92) * 3 or ((sum(calico_ipam_allocated_ips) / sum(calico_ipam_max_ips)) * 100 > 80) * 2 or 1, \"service\", \"08. Calico CNI (BGP/IPAM)\", \"\", \"\")", "format": "table", "instant": true, "legendFormat": "", "refId": "H" },
+        { "expr": "label_replace((min(kube_node_status_condition{condition=\"Ready\",status=\"true\"}) == 0 or count(kube_node_status_condition{condition=\"Ready\",status=\"false\"}) > 0) * 3 or 1, \"service\", \"09. K8s Nodes Ready Status\", \"\", \"\")", "format": "table", "instant": true, "legendFormat": "", "refId": "I" },
+        { "expr": "label_replace((sum(node_processes_state{state=\"D\"}) > 3 or max((1 - (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay\"})) * 100) > 88 or max(rate(node_cpu_seconds_total{mode=\"steal\"}[2m]) * 100) > 5) * 3 or (sum(node_processes_state{state=\"D\"}) > 0 or max((1 - (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay\"})) * 100) > 80 or max((1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100) > 82) * 2 or 1, \"service\", \"10. Хосты (Hardware & Kernel)\", \"\", \"\")", "format": "table", "instant": true, "legendFormat": "", "refId": "J" },
+        { "expr": "label_replace((min(pg_up) == 0 or (max(pg_stat_activity_count) / max(pg_settings_max_connections)) * 100 > 90) * 3 or ((max(pg_stat_activity_count) / max(pg_settings_max_connections)) * 100 > 80) * 2 or 1, \"service\", \"11. PostgreSQL Database\", \"\", \"\")", "format": "table", "instant": true, "legendFormat": "", "refId": "K" },
+        { "expr": "label_replace((min(redis_up) == 0 or (max(redis_memory_used_bytes) / max(redis_memory_max_bytes)) * 100 > 92) * 3 or ((max(redis_memory_used_bytes) / max(redis_memory_max_bytes)) * 100 > 80) * 2 or 1, \"service\", \"12. Redis In-Memory Cache\", \"\", \"\")", "format": "table", "instant": true, "legendFormat": "", "refId": "L" },
+        { "expr": "label_replace((min(mongodb_up) == 0 or min(mongodb_mongod_replset_member_health) == 0) * 3 or 1, \"service\", \"13. MongoDB ReplicaSet\", \"\", \"\")", "format": "table", "instant": true, "legendFormat": "", "refId": "M" },
+        { "expr": "label_replace((sum(kafka_server_replicamanager_underreplicatedpartitions) > 0 or sum(kafka_controller_kafkacontroller_offlinepartitionscount) > 0) * 3 or (min(up{job=~\".*kafka.*\"}) == 0) * 3 or 1, \"service\", \"14. Apache Kafka Streaming\", \"\", \"\")", "format": "table", "instant": true, "legendFormat": "", "refId": "N" },
+        { "expr": "label_replace((min(minio_cluster_health_status) == 0 or min(up{job=~\".*minio.*\"}) == 0) * 3 or ((sum(minio_cluster_capacity_usable_free_bytes) / sum(minio_cluster_capacity_usable_total_bytes)) * 100 < 15) * 2 or 1, \"service\", \"15. S3 / MinIO Object Storage\", \"\", \"\")", "format": "table", "instant": true, "legendFormat": "", "refId": "O" },
+        { "expr": "label_replace((sum(kube_persistentvolumeclaim_status_phase{phase!=\"Bound\"}) > 0 or sum(rate(storage_operation_errors_total[2m])) > 0.05) * 3 or (sum(storage_operation_status_and_duration_seconds_count{status=\"InProgress\"}) > 5) * 2 or 1, \"service\", \"16. CSI / Persistent Storage\", \"\", \"\")", "format": "table", "instant": true, "legendFormat": "", "refId": "P" },
+        { "expr": "label_replace((elasticsearch_cluster_health_status{color=\"red\"} == 1 or max((1 - (elasticsearch_filesystem_data_available_bytes / elasticsearch_filesystem_data_size_bytes)) * 100) > 95) * 3 or (elasticsearch_cluster_health_status{color=\"yellow\"} == 1 or elasticsearch_cluster_health_unassigned_shards > 0) * 2 or 1, \"service\", \"17. ELK (Elasticsearch)\", \"\", \"\")", "format": "table", "instant": true, "legendFormat": "", "refId": "Q" },
+        { "expr": "label_replace((min(up{job=~\".*keycloak.*\"}) == 0 or sum(rate(keycloak_request_duration_count{code=~\"5..\"}[2m])) > 2) * 3 or (histogram_quantile(0.99, sum by (le)(rate(keycloak_request_duration_bucket[2m]))) > 1) * 2 or 1, \"service\", \"18. Keycloak IAM Auth\", \"\", \"\")", "format": "table", "instant": true, "legendFormat": "", "refId": "R" },
+        { "expr": "label_replace((min(up{job=~\".*sentry.*\"}) == 0 or sum(rate(sentry_events_dropped_total[2m])) > 0.5) * 3 or (sum(rate(sentry_events_dropped_total[2m])) > 0) * 2 or 1, \"service\", \"19. Sentry Error Tracking\", \"\", \"\")", "format": "table", "instant": true, "legendFormat": "", "refId": "S" },
+        { "expr": "label_replace((sum(velero_backup_failure_total) > 0 or (time() - max(velero_backup_last_successful_timestamp) > 129600)) * 3 or (time() - max(velero_backup_last_successful_timestamp) > 86400) * 2 or 1, \"service\", \"20. Velero Backups\", \"\", \"\")", "format": "table", "instant": true, "legendFormat": "", "refId": "T" },
+        { "expr": "label_replace((sum(argocd_app_health_status{health_status=\"Degraded\"}) > 0) * 3 or (sum(argocd_app_sync_status{sync_status=\"OutOfSync\"}) > 0) * 2 or 1, \"service\", \"21. ArgoCD GitOps Sync\", \"\", \"\")", "format": "table", "instant": true, "legendFormat": "", "refId": "U" },
+        { "expr": "label_replace((sum(rate(apiserver_admission_webhook_rejection_count{name=~\".*kyverno.*\"}[2m])) > 0) * 3 or (sum(rate(kyverno_policy_results_total{rule_result=\"error\"}[2m])) > 0) * 2 or 1, \"service\", \"22. Kyverno Policy Engine\", \"\", \"\")", "format": "table", "instant": true, "legendFormat": "", "refId": "V" }
+      ],
+      "title": "🚦 Сводная Матрица Всех 22 Систем Кластера",
+      "transformations": [
+        {
+          "id": "reduce",
+          "options": { "reducers": ["lastNotNull"] }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "Field": "Компонент / Сервис",
+              "Last *": "Статус Светофора"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [{ "desc": true, "field": "Статус Светофора" }]
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 },
+      "id": 101,
+      "title": "🌐 Периметр, Ingress/Egress, Сеть и Синтетический Мониторинг",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Синтетические проверки Blackbox Probes (HTTP/TCP). 🟢 = Доступны, TTFB < 1.5s; 🟡 = Задержка > 1.5s; 🔴 = Сбой сетевого соединения или HTTP != 200.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 OK" }, "2": { "color": "semi-dark-yellow", "text": "🟡 ТАЙМАУТ > 1.5s" }, "3": { "color": "red", "text": "🔴 СБОЙ СВЯЗИ" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "semi-dark-yellow", "value": 2 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 0, "y": 10 },
+      "id": 2,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "(min(probe_success) == 0) * 3 or (max(probe_duration_seconds) > 1.5) * 2 or 1", "refId": "A" }],
+      "title": "Blackbox Probes",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Nginx Ingress. 🟢 = Доступен, 5xx < 0.5%; 🟡 = Доля 5xx > 0.5%; 🔴 = Отвал процесса или 5xx > 2%.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 OK" }, "2": { "color": "semi-dark-yellow", "text": "🟡 5XX > 0.5%" }, "3": { "color": "red", "text": "🔴 5XX > 2%" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "semi-dark-yellow", "value": 2 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 4, "y": 10 },
+      "id": 3,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "(min(nginx_up) == 0 or (sum(rate(nginx_ingress_controller_requests{status=~\"5..\"}[2m])) / sum(rate(nginx_ingress_controller_requests[2m]))) * 100 > 2) * 3 or ((sum(rate(nginx_ingress_controller_requests{status=~\"5..\"}[2m])) / sum(rate(nginx_ingress_controller_requests[2m]))) * 100 > 0.5) * 2 or 1", "refId": "A" }],
+      "title": "Nginx Ingress",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Istio Ingress Gateway. 🟢 = Штатный роутинг; 🟡 = Ошибки маршрутизации (UH/UO/UF > 0.5/s); 🔴 = Доля 5xx > 2%.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 OK" }, "2": { "color": "semi-dark-yellow", "text": "🟡 ФЛАГИ UH/UO" }, "3": { "color": "red", "text": "🔴 5XX > 2%" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "semi-dark-yellow", "value": 2 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 8, "y": 10 },
+      "id": 4,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "((sum(rate(istio_requests_total{source_workload=~\".*ingress.*\",response_code=~\"5..\"}[2m])) / sum(rate(istio_requests_total{source_workload=~\".*ingress.*\"}[2m]))) * 100 > 2) * 3 or (sum(rate(istio_requests_total{source_workload=~\".*ingress.*\",response_flags=~\"UH|UF|UO\"}[2m])) > 0.5) * 2 or 1", "refId": "A" }],
+      "title": "Istio Ingress Gateway",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Istio Egress Gateway. 🟢 = Связь с внешними API стабильна; 🟡 = Таймауты внешних сервисов (UT); 🔴 = Сбои TCP/TLS к внешним API (UF) или 5xx > 2%.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 OK" }, "2": { "color": "semi-dark-yellow", "text": "🟡 ТАЙМАУТ UT" }, "3": { "color": "red", "text": "🔴 СБОЙ СВЯЗИ UF" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "semi-dark-yellow", "value": 2 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 12, "y": 10 },
+      "id": 5,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "((sum(rate(istio_requests_total{source_workload=~\".*egress.*\",response_code=~\"5..\"}[2m])) / sum(rate(istio_requests_total{source_workload=~\".*egress.*\"}[2m]))) * 100 > 2) * 3 or (sum(rate(istio_requests_total{source_workload=~\".*egress.*\",response_flags=~\"UT|UF\"}[2m])) > 0.5) * 2 or 1", "refId": "A" }],
+      "title": "Istio Egress Gateway",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Срок действия SSL/TLS сертификатов (cert-manager / Ingress / Envoy). 🟢 = > 21 дня; 🟡 = < 21 дня; 🔴 = < 7 дней.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 OK (>21д)" }, "2": { "color": "semi-dark-yellow", "text": "🟡 СКОРО (<21д)" }, "3": { "color": "red", "text": "🔴 ИСТЕКАЕТ (<7д)" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "semi-dark-yellow", "value": 2 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 16, "y": 10 },
+      "id": 6,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "(min((certmanager_certificate_expiration_timestamp_seconds - time()) / 86400) < 7 or min(envoy_server_days_until_first_cert_expiring) < 7) * 3 or (min((certmanager_certificate_expiration_timestamp_seconds - time()) / 86400) < 21 or min(envoy_server_days_until_first_cert_expiring) < 21) * 2 or 1", "refId": "A" }],
+      "title": "SSL / TLS Сертификаты",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "CoreDNS разрешение имен. 🟢 = SERVFAIL < 0.1%, задержка < 10ms; 🟡 = P99 задержка > 30ms или ошибки > 0.1%; 🔴 = SERVFAIL > 1% (паралич DNS).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 OK" }, "2": { "color": "semi-dark-yellow", "text": "🟡 ЗАДЕРЖКА DNS" }, "3": { "color": "red", "text": "🔴 SERVFAIL > 1%" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "semi-dark-yellow", "value": 2 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 20, "y": 10 },
+      "id": 7,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "((sum(rate(coredns_dns_responses_total{rcode=~\"SERVFAIL|REFUSED\"}[2m])) / sum(rate(coredns_dns_responses_total[2m]))) * 100 > 1) * 3 or (histogram_quantile(0.99, sum by (le)(rate(coredns_dns_request_duration_seconds_bucket[2m]))) > 0.03) * 2 or 1", "refId": "A" }],
+      "title": "CoreDNS Resolution",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 13 },
+      "id": 102,
+      "title": "☸️ Ядро Кластера Kubernetes (Control-Plane & Node Daemons)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "kube-apiserver. 🟢 = 5xx < 0.1%, P99 < 1s; 🟡 = Задержка P99 > 1s или APF троттлинг (429); 🔴 = Доля 5xx > 1%.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 OK" }, "2": { "color": "semi-dark-yellow", "text": "🟡 P99 > 1s / 429" }, "3": { "color": "red", "text": "🔴 5XX > 1%" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "semi-dark-yellow", "value": 2 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 0, "y": 14 },
+      "id": 8,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "((sum(rate(apiserver_request_total{code=~\"5..\"}[2m])) / sum(rate(apiserver_request_total[2m]))) * 100 > 1) * 3 or (histogram_quantile(0.99, sum by (le)(rate(apiserver_request_duration_seconds_bucket{subresource!=\"log\",verb!~\"WATCH|CONNECT\"}[2m]))) > 1) * 2 or 1", "refId": "A" }],
+      "title": "K8s API Server",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "etcd Cluster. 🟢 = Кворум есть, алармов нет, fsync < 10ms; 🟡 = fsync > 15ms, смена лидера или квота > 80%; 🔴 = Потеря кворума (has_leader=0), alarm:NOSPACE или квота > 92%.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 OK" }, "2": { "color": "semi-dark-yellow", "text": "🟡 FSYNC > 15ms" }, "3": { "color": "red", "text": "🔴 ПОТЕРЯ КВОРУМА" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "semi-dark-yellow", "value": 2 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 4, "y": 14 },
+      "id": 9,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "(min(etcd_server_has_leader) == 0 or sum(etcd_server_alarm_state) > 0 or ((max(etcd_mvcc_db_total_size_in_bytes) / max(etcd_server_quota_backend_bytes)) * 100 > 92)) * 3 or (histogram_quantile(0.99, sum by (le)(rate(etcd_disk_wal_fsync_duration_seconds_bucket[2m]))) > 0.015 or sum(changes(etcd_server_leader_changes_seen_total[1h])) > 0 or ((max(etcd_mvcc_db_total_size_in_bytes) / max(etcd_server_quota_backend_bytes)) * 100 > 80)) * 2 or 1", "refId": "A" }],
+      "title": "etcd Storage Cluster",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "kube-scheduler. 🟢 = Очереди пусты, Unschedulable < 10%; 🟡 = activeQ > 50 подов; 🔴 = Unschedulable > 25% (жесткий дефицит ресурсов нод).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 OK" }, "2": { "color": "semi-dark-yellow", "text": "🟡 ОЧЕРЕДЬ > 50" }, "3": { "color": "red", "text": "🔴 UNSCHEDULABLE > 25%" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "semi-dark-yellow", "value": 2 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 8, "y": 14 },
+      "id": 10,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "((sum(rate(scheduler_schedule_attempts_total{result=\"unschedulable\"}[2m])) / sum(rate(scheduler_schedule_attempts_total[2m]))) * 100 > 25) * 3 or (sum(scheduler_pending_pods{queue=~\"active.*\"}) > 50) * 2 or 1", "refId": "A" }],
+      "title": "Kube-Scheduler",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "kube-controller-manager. 🟢 = Лидер активен, очереди стабильны; 🟡 = Очередь HPA > 250 или rate-limiter wait > 50ms; 🔴 = Потеря лидера KCM или очередь HPA > 1000.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 OK" }, "2": { "color": "semi-dark-yellow", "text": "🟡 HPA БЭКЛОГ" }, "3": { "color": "red", "text": "🔴 НЕТ ЛИДЕРА" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "semi-dark-yellow", "value": 2 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 12, "y": 14 },
+      "id": 11,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "(max(leader_election_master_status{name=\"kube-controller-manager\"}) == 0 or sum(workqueue_depth{name=\"horizontalpodautoscaler\"}) > 1000) * 3 or (sum(workqueue_depth{name=\"horizontalpodautoscaler\"}) > 250) * 2 or 1", "refId": "A" }],
+      "title": "Kube-Controller-Manager",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Kubelet и генератор событий рантайма PLEG. 🟢 = PLEG Relist < 1s; 🟡 = PLEG Relist 1-3s; 🔴 = PLEG > 3s (статус 'PLEG is not healthy', угроза падения нод в NotReady).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 OK" }, "2": { "color": "semi-dark-yellow", "text": "🟡 PLEG > 1s" }, "3": { "color": "red", "text": "🔴 PLEG NOT HEALTHY" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "semi-dark-yellow", "value": 2 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 16, "y": 14 },
+      "id": 12,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "(histogram_quantile(0.99, sum by (le)(rate(kubelet_pleg_relist_duration_seconds_bucket[2m]))) > 3) * 3 or (histogram_quantile(0.99, sum by (le)(rate(kubelet_pleg_relist_duration_seconds_bucket[2m]))) > 1) * 2 or 1", "refId": "A" }],
+      "title": "Kubelet & PLEG Health",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Kube-Proxy и Netfilter Conntrack. 🟢 = Conntrack < 70%; 🟡 = Conntrack > 70%; 🔴 = Conntrack > 85% (риск молчаливого сброса пакетов ядром).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 OK" }, "2": { "color": "semi-dark-yellow", "text": "🟡 CONNTRACK > 70%" }, "3": { "color": "red", "text": "🔴 CONNTRACK > 85%" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "semi-dark-yellow", "value": 2 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 20, "y": 14 },
+      "id": 13,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "(max(node_nf_conntrack_entries / node_nf_conntrack_entries_limit * 100) > 85) * 3 or (max(node_nf_conntrack_entries / node_nf_conntrack_entries_limit * 100) > 70) * 2 or 1", "refId": "A" }],
+      "title": "Kube-Proxy & Conntrack",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 },
+      "id": 103,
+      "title": "🖥️ Физическая Инфраструктура Хостов и Рабочие Нагрузки (Workloads)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Статус нод Kubernetes. 🟢 = 100% узлов в статусе Ready; 🔴 = Хотя бы одна нода в NotReady.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 ВСЕ READY" }, "3": { "color": "red", "text": "🔴 NODE NOT READY" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 0, "y": 18 },
+      "id": 14,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "(min(kube_node_status_condition{condition=\"Ready\",status=\"true\"}) == 0 or count(kube_node_status_condition{condition=\"Ready\",status=\"false\"}) > 0) * 3 or 1", "refId": "A" }],
+      "title": "K8s Nodes Ready Status",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Процессор хостов и гипервизорный Steal. 🟢 = Load/Core < 1.0, Steal < 3%; 🟡 = Load/Core > 1.0; 🔴 = Steal > 5% или Load/Core > 1.5.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 OK" }, "2": { "color": "semi-dark-yellow", "text": "🟡 LOAD > 1.0" }, "3": { "color": "red", "text": "🔴 STEAL > 5% / OVERLOAD" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "semi-dark-yellow", "value": 2 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 5, "x": 4, "y": 18 },
+      "id": 15,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "(max(rate(node_cpu_seconds_total{mode=\"steal\"}[2m]) * 100) > 5 or (max(node_load1) / count(count by (cpu) (node_cpu_seconds_total))) > 1.5) * 3 or ((max(node_load1) / count(count by (cpu) (node_cpu_seconds_total))) > 1.0) * 2 or 1", "refId": "A" }],
+      "title": "Хосты: CPU Load & Steal",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Оперативная память хостов. 🟢 = < 80%; 🟡 = 80-88%; 🔴 = > 88% (угроза MemoryPressure).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 OK (<80%)" }, "2": { "color": "semi-dark-yellow", "text": "🟡 RAM > 80%" }, "3": { "color": "red", "text": "🔴 MEMORY PRESSURE" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "semi-dark-yellow", "value": 2 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 5, "x": 9, "y": 18 },
+      "id": 16,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "(max((1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100) > 88) * 3 or (max((1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100) > 80) * 2 or 1", "refId": "A" }],
+      "title": "Хосты: Оперативная Память",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Файловые системы хостов и Inodes. 🟢 = < 80%; 🟡 = 80-85%; 🔴 = Диск > 85% или Inodes > 90% (Kubelet DiskPressure).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 OK (<80%)" }, "2": { "color": "semi-dark-yellow", "text": "🟡 ДИСК > 80%" }, "3": { "color": "red", "text": "🔴 DISK PRESSURE" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "semi-dark-yellow", "value": 2 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 5, "x": 14, "y": 18 },
+      "id": 17,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "(max((1 - (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay\"})) * 100) > 85 or max((1 - (node_filesystem_files_free{fstype!~\"tmpfs|overlay\"} / node_filesystem_files{fstype!~\"tmpfs|overlay\"})) * 100) > 90) * 3 or (max((1 - (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay\"})) * 100) > 80) * 2 or 1", "refId": "A" }],
+      "title": "Хосты: Диск & Inodes",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Процессы в состоянии Uninterruptible Sleep (D-state). 🟢 = 0; 🟡 = 1-3 процесса; 🔴 = > 3 процессов (зависание I/O или сетевой ФС).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 OK (0)" }, "2": { "color": "semi-dark-yellow", "text": "🟡 D-STATE > 1" }, "3": { "color": "red", "text": "🔴 ЗАВИСШИЙ I/O" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "semi-dark-yellow", "value": 2 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 5, "x": 19, "y": 18 },
+      "id": 18,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "(sum(node_processes_state{state=\"D\"}) > 3) * 3 or (sum(node_processes_state{state=\"D\"}) > 0) * 2 or 1", "refId": "A" }],
+      "title": "Хосты: D-State Processes",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Аварийные рестарты подов (CrashLoopBackOff). 🟢 = 0 рестартов; 🟡 = 3-10 за 15 мин; 🔴 = > 10 рестартов за 15 мин.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 OK (0)" }, "2": { "color": "semi-dark-yellow", "text": "🟡 РЕСТАРТЫ > 3" }, "3": { "color": "red", "text": "🔴 CRASHLOOP > 10" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "semi-dark-yellow", "value": 2 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 6, "x": 0, "y": 21 },
+      "id": 19,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "(sum(increase(kube_pod_container_status_restarts_total[15m])) > 10) * 3 or (sum(increase(kube_pod_container_status_restarts_total[15m])) > 3) * 2 or 1", "refId": "A" }],
+      "title": "Pod CrashLoops (15m)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Уничтожение контейнеров ядром по OOM (OOMKilled). 🟢 = 0 OOM; 🟡 = 1-2 случая; 🔴 = > 2 случаев за 15 мин.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 OK (0)" }, "2": { "color": "semi-dark-yellow", "text": "🟡 OOM ОБНАРУЖЕН" }, "3": { "color": "red", "text": "🔴 МАССОВЫЙ OOM" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "semi-dark-yellow", "value": 2 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 6, "x": 6, "y": 21 },
+      "id": 20,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "(sum(increase(kube_pod_container_status_terminated_reason{reason=\"OOMKilled\"}[15m])) > 2) * 3 or (sum(increase(kube_pod_container_status_terminated_reason{reason=\"OOMKilled\"}[15m])) > 0) * 2 or 1", "refId": "A" }],
+      "title": "Workloads OOMKilled (15m)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Принудительное вытеснение подов Kubelet (Evictions). 🟢 = 0 за час; 🔴 = Хотя бы 1 эвикшен за последний час.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 OK (0)" }, "3": { "color": "red", "text": "🔴 ПОДЫ ВЫТЕСНЯЮТСЯ" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 6, "x": 12, "y": 21 },
+      "id": 21,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "(sum(changes(kubelet_evictions[1h])) > 0) * 3 or 1", "refId": "A" }],
+      "title": "K8s Pod Evictions (1h)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Calico CNI: BGP сессии и аллокация IPAM. 🟢 = Все пиры Established, IPAM < 80%; 🟡 = IPAM > 80%; 🔴 = BGP Peering Down (state=0) или IPAM > 92%.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 OK" }, "2": { "color": "semi-dark-yellow", "text": "🟡 IPAM > 80%" }, "3": { "color": "red", "text": "🔴 BGP РАЗРЫВ" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "semi-dark-yellow", "value": 2 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 6, "x": 18, "y": 21 },
+      "id": 22,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "(min(calico_bird_bgp_peering_state) == 0 or (sum(calico_ipam_allocated_ips) / sum(calico_ipam_max_ips)) * 100 > 92) * 3 or ((sum(calico_ipam_allocated_ips) / sum(calico_ipam_max_ips)) * 100 > 80) * 2 or 1", "refId": "A" }],
+      "title": "Calico CNI (BGP & IPAM)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 24 },
+      "id": 104,
+      "title": "🗄️ Базы Данных, Очереди и Хранилища (Stateful & Storage Layer)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "PostgreSQL. 🟢 = Доступен, connections < 80%; 🟡 = Connections > 80%; 🔴 = pg_up == 0 или connections > 90%.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 OK" }, "2": { "color": "semi-dark-yellow", "text": "🟡 CONN > 80%" }, "3": { "color": "red", "text": "🔴 DOWN / CRIT" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "semi-dark-yellow", "value": 2 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 0, "y": 25 },
+      "id": 23,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "(min(pg_up) == 0 or (max(pg_stat_activity_count) / max(pg_settings_max_connections)) * 100 > 90) * 3 or ((max(pg_stat_activity_count) / max(pg_settings_max_connections)) * 100 > 80) * 2 or 1", "refId": "A" }],
+      "title": "PostgreSQL",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Redis. 🟢 = Память < 80%; 🟡 = Память > 80% от maxmemory; 🔴 = redis_up == 0 или память > 92%.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 OK" }, "2": { "color": "semi-dark-yellow", "text": "🟡 MEM > 80%" }, "3": { "color": "red", "text": "🔴 DOWN" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "semi-dark-yellow", "value": 2 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 4, "y": 25 },
+      "id": 24,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "(min(redis_up) == 0 or (max(redis_memory_used_bytes) / max(redis_memory_max_bytes)) * 100 > 92) * 3 or ((max(redis_memory_used_bytes) / max(redis_memory_max_bytes)) * 100 > 80) * 2 or 1", "refId": "A" }],
+      "title": "Redis Cache",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "MongoDB. 🟢 = Все реплики здоровы; 🔴 = mongodb_up == 0 или статус участника RS == 0.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 OK" }, "3": { "color": "red", "text": "🔴 DOWN" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 8, "y": 25 },
+      "id": 25,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "(min(mongodb_up) == 0 or min(mongodb_mongod_replset_member_health) == 0) * 3 or 1", "refId": "A" }],
+      "title": "MongoDB ReplicaSet",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Apache Kafka. 🟢 = Партиции синхронизированы; 🔴 = UnderReplicatedPartitions > 0 или OfflinePartitions > 0.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 OK" }, "3": { "color": "red", "text": "🔴 UNDER-REPLICATED" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 12, "y": 25 },
+      "id": 26,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "(sum(kafka_server_replicamanager_underreplicatedpartitions) > 0 or sum(kafka_controller_kafkacontroller_offlinepartitionscount) > 0 or min(up{job=~\".*kafka.*\"}) == 0) * 3 or 1", "refId": "A" }],
+      "title": "Apache Kafka",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "MinIO S3. 🟢 = Кластер Healthy, свободно > 15%; 🟡 = Свободно < 15%; 🔴 = Кластер Down или offline диски.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 OK" }, "2": { "color": "semi-dark-yellow", "text": "🟡 МЕСТО < 15%" }, "3": { "color": "red", "text": "🔴 CLUSTER DOWN" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "semi-dark-yellow", "value": 2 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 16, "y": 25 },
+      "id": 27,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "(min(minio_cluster_health_status) == 0 or min(up{job=~\".*minio.*\"}) == 0) * 3 or ((sum(minio_cluster_capacity_usable_free_bytes) / sum(minio_cluster_capacity_usable_total_bytes)) * 100 < 15) * 2 or 1", "refId": "A" }],
+      "title": "S3 / MinIO Storage",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "CSI & Persistent Storage. 🟢 = Все PVC Bound; 🟡 = Зависшие операции InProgress; 🔴 = Непривязанные PVC или сбои CSI mount.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 OK" }, "2": { "color": "semi-dark-yellow", "text": "🟡 CSI ЗАДЕРЖКА" }, "3": { "color": "red", "text": "🔴 СБОЙ PVC / MOUNT" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "semi-dark-yellow", "value": 2 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 20, "y": 25 },
+      "id": 28,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "(sum(kube_persistentvolumeclaim_status_phase{phase!=\"Bound\"}) > 0 or sum(rate(storage_operation_errors_total[2m])) > 0.05) * 3 or (sum(storage_operation_status_and_duration_seconds_count{status=\"InProgress\"}) > 5) * 2 or 1", "refId": "A" }],
+      "title": "CSI / Persistent Storage",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 28 },
+      "id": 105,
+      "title": "🚀 Платформенные Сервисы, Эксплуатация и Безопасность",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Elasticsearch (ELK). 🟢 = GREEN; 🟡 = YELLOW или нераспределенные шарды; 🔴 = RED или диск > 95% (Flood Stage Read-Only).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 GREEN" }, "2": { "color": "semi-dark-yellow", "text": "🟡 YELLOW" }, "3": { "color": "red", "text": "🔴 RED / READ-ONLY" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "semi-dark-yellow", "value": 2 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 0, "y": 29 },
+      "id": 29,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "(elasticsearch_cluster_health_status{color=\"red\"} == 1 or max((1 - (elasticsearch_filesystem_data_available_bytes / elasticsearch_filesystem_data_size_bytes)) * 100) > 95) * 3 or (elasticsearch_cluster_health_status{color=\"yellow\"} == 1 or elasticsearch_cluster_health_unassigned_shards > 0) * 2 or 1", "refId": "A" }],
+      "title": "ELK (Elasticsearch)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Keycloak. 🟢 = Доступен, 5xx = 0; 🟡 = Задержка P99 > 1s; 🔴 = Отвал процесса или всплеск 5xx ошибок.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 OK" }, "2": { "color": "semi-dark-yellow", "text": "🟡 P99 > 1s" }, "3": { "color": "red", "text": "🔴 DOWN / 5XX" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "semi-dark-yellow", "value": 2 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 4, "y": 29 },
+      "id": 30,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "(min(up{job=~\".*keycloak.*\"}) == 0 or sum(rate(keycloak_request_duration_count{code=~\"5..\"}[2m])) > 2) * 3 or (histogram_quantile(0.99, sum by (le)(rate(keycloak_request_duration_bucket[2m]))) > 1) * 2 or 1", "refId": "A" }],
+      "title": "Keycloak (IAM Auth)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Sentry. 🟢 = Воркеры активны; 🟡 = Дроп ивентов > 0; 🔴 = Sentry Down или дроп ивентов > 0.5/s.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 OK" }, "2": { "color": "semi-dark-yellow", "text": "🟡 ДРОПЫ ИВЕНТОВ" }, "3": { "color": "red", "text": "🔴 SENTRY DOWN" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "semi-dark-yellow", "value": 2 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 8, "y": 29 },
+      "id": 31,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "(min(up{job=~\".*sentry.*\"}) == 0 or sum(rate(sentry_events_dropped_total[2m])) > 0.5) * 3 or (sum(rate(sentry_events_dropped_total[2m])) > 0) * 2 or 1", "refId": "A" }],
+      "title": "Sentry Error Tracking",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Velero Бэкапы. 🟢 = Последний успешный бэкап < 24ч; 🟡 = Бэкап старше 24ч; 🔴 = Бэкап старше 36ч или статус Failed.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 OK (<24ч)" }, "2": { "color": "semi-dark-yellow", "text": "🟡 СТАРШЕ 24ч" }, "3": { "color": "red", "text": "🔴 FAILED / >36ч" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "semi-dark-yellow", "value": 2 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 12, "y": 29 },
+      "id": 32,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "(sum(velero_backup_failure_total) > 0 or (time() - max(velero_backup_last_successful_timestamp) > 129600)) * 3 or (time() - max(velero_backup_last_successful_timestamp) > 86400) * 2 or 1", "refId": "A" }],
+      "title": "Velero Backups",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "ArgoCD GitOps. 🟢 = Все приложения Synced; 🟡 = Есть OutOfSync приложения; 🔴 = Приложения в Degraded.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 OK (SYNCED)" }, "2": { "color": "semi-dark-yellow", "text": "🟡 OUT OF SYNC" }, "3": { "color": "red", "text": "🔴 DEGRADED" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "semi-dark-yellow", "value": 2 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 16, "y": 29 },
+      "id": 33,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "(sum(argocd_app_health_status{health_status=\"Degraded\"}) > 0) * 3 or (sum(argocd_app_sync_status{sync_status=\"OutOfSync\"}) > 0) * 2 or 1", "refId": "A" }],
+      "title": "ArgoCD GitOps Sync",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Kyverno Policy Engine. 🟢 = Вебхуки стабильны; 🟡 = Ошибки политик; 🔴 = Отклонения вебхука или сбой контроллера.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "1": { "color": "green", "text": "🟢 OK" }, "2": { "color": "semi-dark-yellow", "text": "🟡 СБОИ ПРАВИЛ" }, "3": { "color": "red", "text": "🔴 WEBHOOK REJECT" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "semi-dark-yellow", "value": 2 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 20, "y": 29 },
+      "id": 34,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "(sum(rate(apiserver_admission_webhook_rejection_count{name=~\".*kyverno.*\"}[2m])) > 0) * 3 or (sum(rate(kyverno_policy_results_total{rule_result=\"error\"}[2m])) > 0) * 2 or 1", "refId": "A" }],
+      "title": "Kyverno (Policy Engine)",
+      "type": "stat"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["traffic-light", "executive", "sre", "status", "infrastructure", "kubernetes"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "🚦 SRE Enterprise Master Traffic Light / Светофор Инфраструктуры 360°",
+  "uid": "sre-enterprise-traffic-light-360-ru",
+  "version": 2
+}
