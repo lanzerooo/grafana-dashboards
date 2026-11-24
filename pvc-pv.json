@@ -1,0 +1,1533 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus / VictoriaMetrics",
+      "description": "Prometheus-совместимый источник с kube-state-metrics и метриками томов kubelet.",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "__requires": [
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "9.0.0"
+    },
+    {
+      "type": "datasource",
+      "id": "prometheus",
+      "name": "Prometheus",
+      "version": "1.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "stat",
+      "name": "Stat",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "table",
+      "name": "Table",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "timeseries",
+      "name": "Time series",
+      "version": ""
+    }
+  ],
+  "id": null,
+  "uid": "k8s-pvc-pv-storage",
+  "title": "Kubernetes · PVC и PV",
+  "schemaVersion": 38,
+  "version": 1,
+  "editable": true,
+  "timezone": "browser",
+  "tags": [
+    "kubernetes",
+    "storage",
+    "pvc",
+    "pv",
+    "victoriametrics"
+  ],
+  "refresh": "1m",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "graphTooltip": 1,
+  "description": "Светофор, критичные тома, заполнение PVC и инвентарь. Namespace и PVC regex фильтруют PVC. PV фильтруются по кластеру и StorageClass. Фазы и привязки берутся из kube-state-metrics, фактическое заполнение — из метрик kubelet.",
+  "templating": {
+    "list": [
+      {
+        "type": "textbox",
+        "name": "cluster",
+        "label": "Cluster (regex)",
+        "query": ".*",
+        "description": "При общем datasource выберите кластер по метке cluster. .* включает серии без этой метки.",
+        "current": {
+          "text": ".*",
+          "value": ".*",
+          "selected": true
+        },
+        "hide": 0,
+        "options": []
+      },
+      {
+        "type": "query",
+        "name": "namespace",
+        "label": "Namespace",
+        "definition": "label_values(kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\"},namespace)",
+        "description": "Фильтр PVC. PV сохраняют область всего выбранного кластера.",
+        "query": {
+          "query": "label_values(kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\"},namespace)",
+          "refId": "StandardVariableQuery"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ],
+          "selected": true
+        },
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "refresh": 1,
+        "sort": 1,
+        "hide": 0,
+        "options": []
+      },
+      {
+        "type": "query",
+        "name": "storageclass",
+        "label": "StorageClass",
+        "definition": "label_values(kube_storageclass_info{cluster=~\"${cluster:raw}\"},storageclass)",
+        "description": "Фильтр PVC и PV. All включает ресурсы без StorageClass.",
+        "query": {
+          "query": "label_values(kube_storageclass_info{cluster=~\"${cluster:raw}\"},storageclass)",
+          "refId": "StandardVariableQuery"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ],
+          "selected": true
+        },
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "refresh": 1,
+        "sort": 1,
+        "hide": 0,
+        "options": []
+      },
+      {
+        "type": "textbox",
+        "name": "pvc_filter",
+        "label": "PVC (regex)",
+        "query": ".*",
+        "description": "Фильтр по имени PVC для светофора, инвентаря и графика.",
+        "current": {
+          "text": ".*",
+          "value": ".*",
+          "selected": true
+        },
+        "hide": 0,
+        "options": []
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Светофор хранилища",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "PVC · фазы",
+      "description": "Жёлтый — Pending или удаление. Красный — Lost или удаление дольше 5 минут. Оценка удаления требует метрику deletion timestamp.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "((count(((max by(cluster,namespace,persistentvolumeclaim)(kube_persistentvolumeclaim_status_phase{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\",phase=~\"Lost\"})==1) and on(cluster,namespace,persistentvolumeclaim) (max by(cluster,namespace,persistentvolumeclaim,storageclass,volumename,volumemode)(kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\",storageclass=~\"${storageclass:regex}\"})))\nor (time()-((max by(cluster,namespace,persistentvolumeclaim)(kube_persistentvolumeclaim_deletion_timestamp{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\"})>0) and on(cluster,namespace,persistentvolumeclaim) (max by(cluster,namespace,persistentvolumeclaim,storageclass,volumename,volumemode)(kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\",storageclass=~\"${storageclass:regex}\"})))>300)))*0+2)\nor ((count(((max by(cluster,namespace,persistentvolumeclaim)(kube_persistentvolumeclaim_status_phase{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\",phase=~\"Pending\"})==1) and on(cluster,namespace,persistentvolumeclaim) (max by(cluster,namespace,persistentvolumeclaim,storageclass,volumename,volumemode)(kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\",storageclass=~\"${storageclass:regex}\"})))\nor ((max by(cluster,namespace,persistentvolumeclaim)(kube_persistentvolumeclaim_deletion_timestamp{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\"})>0) and on(cluster,namespace,persistentvolumeclaim) (max by(cluster,namespace,persistentvolumeclaim,storageclass,volumename,volumemode)(kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\",storageclass=~\"${storageclass:regex}\"})))))*0+1)\nor ((count(max by(cluster,namespace,persistentvolumeclaim,storageclass,volumename,volumemode)(kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\",storageclass=~\"${storageclass:regex}\"})))*0+0)\nor (vector(-1))",
+          "format": "time_series",
+          "instant": true,
+          "range": false,
+          "legendFormat": "PVC"
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true,
+          "limit": 1000
+        },
+        "textMode": "value",
+        "wideLayout": false
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "НЕТ ДАННЫХ",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              },
+              {
+                "value": 0,
+                "color": "#238044"
+              },
+              {
+                "value": 1,
+                "color": "#B58106"
+              },
+              {
+                "value": 2,
+                "color": "#BA3438"
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "OK",
+                  "color": "#238044",
+                  "index": 2
+                },
+                "1": {
+                  "text": "ВНИМАНИЕ",
+                  "color": "#B58106",
+                  "index": 3
+                },
+                "2": {
+                  "text": "КРИТИЧНО",
+                  "color": "#BA3438",
+                  "index": 4
+                },
+                "-2": {
+                  "text": "НЕТ МЕТРИК",
+                  "color": "#687385",
+                  "index": 0
+                },
+                "-1": {
+                  "text": "НЕТ ДАННЫХ",
+                  "color": "#687385",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "id": 2,
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 5,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "PV · фазы",
+      "description": "Жёлтый — Released, Pending или удаление. Красный — Failed или удаление дольше 5 минут. Available и Bound — штатные фазы.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "((count(((max by(cluster,persistentvolume)(kube_persistentvolume_status_phase{cluster=~\"${cluster:raw}\",phase=~\"Failed\"})==1) and on(cluster,persistentvolume) (max by(cluster,persistentvolume,storageclass,reclaim_policy,csi_driver)(kube_persistentvolume_info{cluster=~\"${cluster:raw}\",storageclass=~\"${storageclass:regex}\"})))\nor (time()-((max by(cluster,persistentvolume)(kube_persistentvolume_deletion_timestamp{cluster=~\"${cluster:raw}\"})>0) and on(cluster,persistentvolume) (max by(cluster,persistentvolume,storageclass,reclaim_policy,csi_driver)(kube_persistentvolume_info{cluster=~\"${cluster:raw}\",storageclass=~\"${storageclass:regex}\"})))>300)))*0+2)\nor ((count(((max by(cluster,persistentvolume)(kube_persistentvolume_status_phase{cluster=~\"${cluster:raw}\",phase=~\"Released|Pending\"})==1) and on(cluster,persistentvolume) (max by(cluster,persistentvolume,storageclass,reclaim_policy,csi_driver)(kube_persistentvolume_info{cluster=~\"${cluster:raw}\",storageclass=~\"${storageclass:regex}\"})))\nor ((max by(cluster,persistentvolume)(kube_persistentvolume_deletion_timestamp{cluster=~\"${cluster:raw}\"})>0) and on(cluster,persistentvolume) (max by(cluster,persistentvolume,storageclass,reclaim_policy,csi_driver)(kube_persistentvolume_info{cluster=~\"${cluster:raw}\",storageclass=~\"${storageclass:regex}\"})))))*0+1)\nor ((count(max by(cluster,persistentvolume,storageclass,reclaim_policy,csi_driver)(kube_persistentvolume_info{cluster=~\"${cluster:raw}\",storageclass=~\"${storageclass:regex}\"})))*0+0)\nor (vector(-1))",
+          "format": "time_series",
+          "instant": true,
+          "range": false,
+          "legendFormat": "PV"
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true,
+          "limit": 1000
+        },
+        "textMode": "value",
+        "wideLayout": false
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "НЕТ ДАННЫХ",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              },
+              {
+                "value": 0,
+                "color": "#238044"
+              },
+              {
+                "value": 1,
+                "color": "#B58106"
+              },
+              {
+                "value": 2,
+                "color": "#BA3438"
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "OK",
+                  "color": "#238044",
+                  "index": 2
+                },
+                "1": {
+                  "text": "ВНИМАНИЕ",
+                  "color": "#B58106",
+                  "index": 3
+                },
+                "2": {
+                  "text": "КРИТИЧНО",
+                  "color": "#BA3438",
+                  "index": 4
+                },
+                "-2": {
+                  "text": "НЕТ МЕТРИК",
+                  "color": "#687385",
+                  "index": 0
+                },
+                "-1": {
+                  "text": "НЕТ ДАННЫХ",
+                  "color": "#687385",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "id": 3,
+      "gridPos": {
+        "x": 5,
+        "y": 1,
+        "w": 5,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "PVC · место",
+      "description": "Худший статус по выбранным PVC со статистикой kubelet. Жёлтый от 80%, красный от 90%.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "((count(((max by(cluster,namespace,persistentvolumeclaim)(100*kubelet_volume_stats_used_bytes{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\"}/(kubelet_volume_stats_capacity_bytes{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\"}>0))) and on(cluster,namespace,persistentvolumeclaim) (max by(cluster,namespace,persistentvolumeclaim)(max by(cluster,namespace,persistentvolumeclaim,storageclass,volumename,volumemode)(kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\",storageclass=~\"${storageclass:regex}\"}))))>=90))*0+2)\nor ((count(((max by(cluster,namespace,persistentvolumeclaim)(100*kubelet_volume_stats_used_bytes{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\"}/(kubelet_volume_stats_capacity_bytes{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\"}>0))) and on(cluster,namespace,persistentvolumeclaim) (max by(cluster,namespace,persistentvolumeclaim)(max by(cluster,namespace,persistentvolumeclaim,storageclass,volumename,volumemode)(kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\",storageclass=~\"${storageclass:regex}\"}))))>=80))*0+1)\nor ((count((max by(cluster,namespace,persistentvolumeclaim)(100*kubelet_volume_stats_used_bytes{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\"}/(kubelet_volume_stats_capacity_bytes{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\"}>0))) and on(cluster,namespace,persistentvolumeclaim) (max by(cluster,namespace,persistentvolumeclaim)(max by(cluster,namespace,persistentvolumeclaim,storageclass,volumename,volumemode)(kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\",storageclass=~\"${storageclass:regex}\"})))))*0+0)\nor (vector(-1))",
+          "format": "time_series",
+          "instant": true,
+          "range": false,
+          "legendFormat": "Место"
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true,
+          "limit": 1000
+        },
+        "textMode": "value",
+        "wideLayout": false
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "НЕТ ДАННЫХ",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              },
+              {
+                "value": 0,
+                "color": "#238044"
+              },
+              {
+                "value": 1,
+                "color": "#B58106"
+              },
+              {
+                "value": 2,
+                "color": "#BA3438"
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "OK",
+                  "color": "#238044",
+                  "index": 2
+                },
+                "1": {
+                  "text": "ВНИМАНИЕ",
+                  "color": "#B58106",
+                  "index": 3
+                },
+                "2": {
+                  "text": "КРИТИЧНО",
+                  "color": "#BA3438",
+                  "index": 4
+                },
+                "-2": {
+                  "text": "НЕТ МЕТРИК",
+                  "color": "#687385",
+                  "index": 0
+                },
+                "-1": {
+                  "text": "НЕТ ДАННЫХ",
+                  "color": "#687385",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "id": 4,
+      "gridPos": {
+        "x": 10,
+        "y": 1,
+        "w": 5,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "PVC · inode",
+      "description": "Худший статус по использованию inode. Жёлтый от 80%, красный от 90%.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "((count(((max by(cluster,namespace,persistentvolumeclaim)(100*kubelet_volume_stats_inodes_used{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\"}/(kubelet_volume_stats_inodes{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\"}>0))) and on(cluster,namespace,persistentvolumeclaim) (max by(cluster,namespace,persistentvolumeclaim)(max by(cluster,namespace,persistentvolumeclaim,storageclass,volumename,volumemode)(kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\",storageclass=~\"${storageclass:regex}\"}))))>=90))*0+2)\nor ((count(((max by(cluster,namespace,persistentvolumeclaim)(100*kubelet_volume_stats_inodes_used{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\"}/(kubelet_volume_stats_inodes{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\"}>0))) and on(cluster,namespace,persistentvolumeclaim) (max by(cluster,namespace,persistentvolumeclaim)(max by(cluster,namespace,persistentvolumeclaim,storageclass,volumename,volumemode)(kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\",storageclass=~\"${storageclass:regex}\"}))))>=80))*0+1)\nor ((count((max by(cluster,namespace,persistentvolumeclaim)(100*kubelet_volume_stats_inodes_used{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\"}/(kubelet_volume_stats_inodes{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\"}>0))) and on(cluster,namespace,persistentvolumeclaim) (max by(cluster,namespace,persistentvolumeclaim)(max by(cluster,namespace,persistentvolumeclaim,storageclass,volumename,volumemode)(kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\",storageclass=~\"${storageclass:regex}\"})))))*0+0)\nor (vector(-1))",
+          "format": "time_series",
+          "instant": true,
+          "range": false,
+          "legendFormat": "Inode"
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true,
+          "limit": 1000
+        },
+        "textMode": "value",
+        "wideLayout": false
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "НЕТ ДАННЫХ",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              },
+              {
+                "value": 0,
+                "color": "#238044"
+              },
+              {
+                "value": 1,
+                "color": "#B58106"
+              },
+              {
+                "value": 2,
+                "color": "#BA3438"
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "OK",
+                  "color": "#238044",
+                  "index": 2
+                },
+                "1": {
+                  "text": "ВНИМАНИЕ",
+                  "color": "#B58106",
+                  "index": 3
+                },
+                "2": {
+                  "text": "КРИТИЧНО",
+                  "color": "#BA3438",
+                  "index": 4
+                },
+                "-2": {
+                  "text": "НЕТ МЕТРИК",
+                  "color": "#687385",
+                  "index": 0
+                },
+                "-1": {
+                  "text": "НЕТ ДАННЫХ",
+                  "color": "#687385",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "id": 5,
+      "gridPos": {
+        "x": 15,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Bound PVC без статистики",
+      "description": "Количество Bound PVC без доступной статистики заполнения. Например, PVC ещё не смонтирован или CSI не публикует метрики.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "(count(((max by(cluster,namespace,persistentvolumeclaim)(kube_persistentvolumeclaim_status_phase{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\",phase=~\"Bound\"})==1) and on(cluster,namespace,persistentvolumeclaim) (max by(cluster,namespace,persistentvolumeclaim,storageclass,volumename,volumemode)(kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\",storageclass=~\"${storageclass:regex}\"}))) unless on(cluster,namespace,persistentvolumeclaim) ((max by(cluster,namespace,persistentvolumeclaim)(100*kubelet_volume_stats_used_bytes{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\"}/(kubelet_volume_stats_capacity_bytes{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\"}>0))) and on(cluster,namespace,persistentvolumeclaim) (max by(cluster,namespace,persistentvolumeclaim)(max by(cluster,namespace,persistentvolumeclaim,storageclass,volumename,volumemode)(kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\",storageclass=~\"${storageclass:regex}\"}))))))\nor ((count((max by(cluster,namespace,persistentvolumeclaim)(kube_persistentvolumeclaim_status_phase{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\",phase=~\"Bound\"})==1) and on(cluster,namespace,persistentvolumeclaim) (max by(cluster,namespace,persistentvolumeclaim,storageclass,volumename,volumemode)(kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\",storageclass=~\"${storageclass:regex}\"}))))*0+0)\nor (vector(-1))",
+          "format": "time_series",
+          "instant": true,
+          "range": false,
+          "legendFormat": "PVC без статистики"
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true,
+          "limit": 1000
+        },
+        "textMode": "value",
+        "wideLayout": false
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "НЕТ ДАННЫХ",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              },
+              {
+                "value": 0,
+                "color": "#238044"
+              },
+              {
+                "value": 1,
+                "color": "#B58106"
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "НЕТ BOUND PVC",
+                  "color": "#687385",
+                  "index": 0
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "id": 6,
+      "gridPos": {
+        "x": 19,
+        "y": 1,
+        "w": 5,
+        "h": 4
+      }
+    },
+    {
+      "id": 7,
+      "type": "row",
+      "title": "Критичные тома",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "PVC · Lost / удаление > 5 мин",
+      "description": "Показаны PVC в фазе Lost и PVC, у которых удаление длится дольше 5 минут.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "((((max by(cluster,namespace,persistentvolumeclaim)(kube_persistentvolumeclaim_status_phase{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\",phase=~\"Lost\"})==1) and on(cluster,namespace,persistentvolumeclaim) (max by(cluster,namespace,persistentvolumeclaim,storageclass,volumename,volumemode)(kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\",storageclass=~\"${storageclass:regex}\"})))\nor (time()-((max by(cluster,namespace,persistentvolumeclaim)(kube_persistentvolumeclaim_deletion_timestamp{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\"})>0) and on(cluster,namespace,persistentvolumeclaim) (max by(cluster,namespace,persistentvolumeclaim,storageclass,volumename,volumemode)(kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\",storageclass=~\"${storageclass:regex}\"})))>300))*0+2) or on() (label_replace((label_replace((((count(max by(cluster,namespace,persistentvolumeclaim,storageclass,volumename,volumemode)(kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\",storageclass=~\"${storageclass:regex}\"})))*0+-1)\nor (vector(-2))),\"namespace\",\"—\",\"__name__\",\".*\")),\"persistentvolumeclaim\",\"—\",\"__name__\",\".*\"))",
+          "format": "time_series",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{namespace}} / {{persistentvolumeclaim}}"
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true,
+          "limit": 1000
+        },
+        "textMode": "value_and_name",
+        "wideLayout": false
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "НЕТ ДАННЫХ",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              },
+              {
+                "value": 0,
+                "color": "#238044"
+              },
+              {
+                "value": 1,
+                "color": "#B58106"
+              },
+              {
+                "value": 2,
+                "color": "#BA3438"
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "2": {
+                  "text": "КРИТИЧНО",
+                  "color": "#BA3438",
+                  "index": 2
+                },
+                "-2": {
+                  "text": "НЕТ МЕТРИК",
+                  "color": "#687385",
+                  "index": 0
+                },
+                "-1": {
+                  "text": "КРАСНЫХ НЕТ",
+                  "color": "#687385",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "id": 8,
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 6,
+        "h": 6
+      }
+    },
+    {
+      "type": "stat",
+      "title": "PV · Failed / удаление > 5 мин",
+      "description": "Показаны PV в фазе Failed и PV, у которых удаление длится дольше 5 минут.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "((((max by(cluster,persistentvolume)(kube_persistentvolume_status_phase{cluster=~\"${cluster:raw}\",phase=~\"Failed\"})==1) and on(cluster,persistentvolume) (max by(cluster,persistentvolume,storageclass,reclaim_policy,csi_driver)(kube_persistentvolume_info{cluster=~\"${cluster:raw}\",storageclass=~\"${storageclass:regex}\"})))\nor (time()-((max by(cluster,persistentvolume)(kube_persistentvolume_deletion_timestamp{cluster=~\"${cluster:raw}\"})>0) and on(cluster,persistentvolume) (max by(cluster,persistentvolume,storageclass,reclaim_policy,csi_driver)(kube_persistentvolume_info{cluster=~\"${cluster:raw}\",storageclass=~\"${storageclass:regex}\"})))>300))*0+2) or on() (label_replace((((count(max by(cluster,persistentvolume,storageclass,reclaim_policy,csi_driver)(kube_persistentvolume_info{cluster=~\"${cluster:raw}\",storageclass=~\"${storageclass:regex}\"})))*0+-1)\nor (vector(-2))),\"persistentvolume\",\"—\",\"__name__\",\".*\"))",
+          "format": "time_series",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{persistentvolume}}"
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true,
+          "limit": 1000
+        },
+        "textMode": "value_and_name",
+        "wideLayout": false
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "НЕТ ДАННЫХ",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              },
+              {
+                "value": 0,
+                "color": "#238044"
+              },
+              {
+                "value": 1,
+                "color": "#B58106"
+              },
+              {
+                "value": 2,
+                "color": "#BA3438"
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "2": {
+                  "text": "КРИТИЧНО",
+                  "color": "#BA3438",
+                  "index": 2
+                },
+                "-2": {
+                  "text": "НЕТ МЕТРИК",
+                  "color": "#687385",
+                  "index": 0
+                },
+                "-1": {
+                  "text": "КРАСНЫХ НЕТ",
+                  "color": "#687385",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "id": 9,
+      "gridPos": {
+        "x": 6,
+        "y": 6,
+        "w": 6,
+        "h": 6
+      }
+    },
+    {
+      "type": "stat",
+      "title": "PVC · место ≥ 90%",
+      "description": "Фактическое заполнение по kubelet. Для томов, видимых на нескольких узлах, используется максимум процента.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "(((max by(cluster,namespace,persistentvolumeclaim)(100*kubelet_volume_stats_used_bytes{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\"}/(kubelet_volume_stats_capacity_bytes{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\"}>0))) and on(cluster,namespace,persistentvolumeclaim) (max by(cluster,namespace,persistentvolumeclaim)(max by(cluster,namespace,persistentvolumeclaim,storageclass,volumename,volumemode)(kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\",storageclass=~\"${storageclass:regex}\"}))))>=90) or on() (label_replace((label_replace((((count((max by(cluster,namespace,persistentvolumeclaim)(100*kubelet_volume_stats_used_bytes{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\"}/(kubelet_volume_stats_capacity_bytes{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\"}>0))) and on(cluster,namespace,persistentvolumeclaim) (max by(cluster,namespace,persistentvolumeclaim)(max by(cluster,namespace,persistentvolumeclaim,storageclass,volumename,volumemode)(kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\",storageclass=~\"${storageclass:regex}\"})))))*0+-1)\nor (vector(-2))),\"namespace\",\"—\",\"__name__\",\".*\")),\"persistentvolumeclaim\",\"—\",\"__name__\",\".*\"))",
+          "format": "time_series",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{namespace}} / {{persistentvolumeclaim}}"
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true,
+          "limit": 1000
+        },
+        "textMode": "value_and_name",
+        "wideLayout": false
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "НЕТ ДАННЫХ",
+          "decimals": 1,
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              },
+              {
+                "value": 0,
+                "color": "#238044"
+              },
+              {
+                "value": 80,
+                "color": "#B58106"
+              },
+              {
+                "value": 90,
+                "color": "#BA3438"
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-2": {
+                  "text": "НЕТ МЕТРИК",
+                  "color": "#687385",
+                  "index": 0
+                },
+                "-1": {
+                  "text": "КРАСНЫХ НЕТ",
+                  "color": "#687385",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "id": 10,
+      "gridPos": {
+        "x": 12,
+        "y": 6,
+        "w": 6,
+        "h": 6
+      }
+    },
+    {
+      "type": "stat",
+      "title": "PVC · inode ≥ 90%",
+      "description": "Доля использованных inode по kubelet.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "(((max by(cluster,namespace,persistentvolumeclaim)(100*kubelet_volume_stats_inodes_used{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\"}/(kubelet_volume_stats_inodes{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\"}>0))) and on(cluster,namespace,persistentvolumeclaim) (max by(cluster,namespace,persistentvolumeclaim)(max by(cluster,namespace,persistentvolumeclaim,storageclass,volumename,volumemode)(kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\",storageclass=~\"${storageclass:regex}\"}))))>=90) or on() (label_replace((label_replace((((count((max by(cluster,namespace,persistentvolumeclaim)(100*kubelet_volume_stats_inodes_used{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\"}/(kubelet_volume_stats_inodes{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\"}>0))) and on(cluster,namespace,persistentvolumeclaim) (max by(cluster,namespace,persistentvolumeclaim)(max by(cluster,namespace,persistentvolumeclaim,storageclass,volumename,volumemode)(kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\",storageclass=~\"${storageclass:regex}\"})))))*0+-1)\nor (vector(-2))),\"namespace\",\"—\",\"__name__\",\".*\")),\"persistentvolumeclaim\",\"—\",\"__name__\",\".*\"))",
+          "format": "time_series",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{namespace}} / {{persistentvolumeclaim}}"
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true,
+          "limit": 1000
+        },
+        "textMode": "value_and_name",
+        "wideLayout": false
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "НЕТ ДАННЫХ",
+          "decimals": 1,
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              },
+              {
+                "value": 0,
+                "color": "#238044"
+              },
+              {
+                "value": 80,
+                "color": "#B58106"
+              },
+              {
+                "value": 90,
+                "color": "#BA3438"
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-2": {
+                  "text": "НЕТ МЕТРИК",
+                  "color": "#687385",
+                  "index": 0
+                },
+                "-1": {
+                  "text": "КРАСНЫХ НЕТ",
+                  "color": "#687385",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "id": 11,
+      "gridPos": {
+        "x": 18,
+        "y": 6,
+        "w": 6,
+        "h": 6
+      }
+    },
+    {
+      "id": 12,
+      "type": "row",
+      "title": "Заполнение PVC",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Заполнение PVC · топ-10 на конец периода",
+      "description": "График для десяти PVC с наибольшим заполнением на конец выбранного периода. Список томов одинаковый по всей оси времени.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "((max by(cluster,namespace,persistentvolumeclaim)(100*kubelet_volume_stats_used_bytes{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\"}/(kubelet_volume_stats_capacity_bytes{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\"}>0))) and on(cluster,namespace,persistentvolumeclaim) (max by(cluster,namespace,persistentvolumeclaim)(max by(cluster,namespace,persistentvolumeclaim,storageclass,volumename,volumemode)(kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\",storageclass=~\"${storageclass:regex}\"})))) and on(cluster,namespace,persistentvolumeclaim) (topk(10,(max by(cluster,namespace,persistentvolumeclaim)(100*kubelet_volume_stats_used_bytes{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\"} @ end()/(kubelet_volume_stats_capacity_bytes{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\"} @ end()>0))) and on(cluster,namespace,persistentvolumeclaim) (max by(cluster,namespace,persistentvolumeclaim)(kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\",storageclass=~\"${storageclass:regex}\"} @ end()))))",
+          "format": "time_series",
+          "instant": false,
+          "range": true,
+          "legendFormat": "{{namespace}} / {{persistentvolumeclaim}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "min": 0,
+          "max": 100,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              },
+              {
+                "value": 0,
+                "color": "#238044"
+              },
+              {
+                "value": 80,
+                "color": "#B58106"
+              },
+              {
+                "value": 90,
+                "color": "#BA3438"
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 4,
+            "showPoints": "never",
+            "spanNulls": false,
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 13,
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 24,
+        "h": 8
+      }
+    },
+    {
+      "id": 14,
+      "type": "row",
+      "title": "Инвентарь PVC и PV",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "type": "table",
+      "title": "PVC · привязка и запрос объёма",
+      "description": "PVC в выбранных namespace. В колонке PV указан volumeName из PVC, а запрошенный объём берётся из ресурсов PVC.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "((((max by(cluster,namespace,persistentvolumeclaim,phase)(kube_persistentvolumeclaim_status_phase{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\"})==1) * on(cluster,namespace,persistentvolumeclaim) group_left(storageclass,volumename,volumemode) (max by(cluster,namespace,persistentvolumeclaim,storageclass,volumename,volumemode)(kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\",storageclass=~\"${storageclass:regex}\"}))) or on(cluster,namespace,persistentvolumeclaim) (max by(cluster,namespace,persistentvolumeclaim,storageclass,volumename,volumemode)(kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\",storageclass=~\"${storageclass:regex}\"}))) * on(cluster,namespace,persistentvolumeclaim) group_left() (max by(cluster,namespace,persistentvolumeclaim)(kube_persistentvolumeclaim_resource_requests_storage_bytes{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\"}))) or on(cluster,namespace,persistentvolumeclaim) ((((max by(cluster,namespace,persistentvolumeclaim,phase)(kube_persistentvolumeclaim_status_phase{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\"})==1) * on(cluster,namespace,persistentvolumeclaim) group_left(storageclass,volumename,volumemode) (max by(cluster,namespace,persistentvolumeclaim,storageclass,volumename,volumemode)(kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\",storageclass=~\"${storageclass:regex}\"}))) or on(cluster,namespace,persistentvolumeclaim) (max by(cluster,namespace,persistentvolumeclaim,storageclass,volumename,volumemode)(kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\",namespace=~\"${namespace:regex}\",persistentvolumeclaim=~\"${pvc_filter:raw}\",storageclass=~\"${storageclass:regex}\"})))*0-1)",
+          "format": "table",
+          "instant": true,
+          "range": false,
+          "legendFormat": ""
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true
+            },
+            "indexByName": {
+              "namespace": 0,
+              "persistentvolumeclaim": 1,
+              "phase": 2,
+              "volumename": 3,
+              "storageclass": 4,
+              "volumemode": 5,
+              "Value": 6,
+              "cluster": 7
+            },
+            "renameByName": {
+              "namespace": "Namespace",
+              "persistentvolumeclaim": "PVC",
+              "phase": "Фаза",
+              "volumename": "PV",
+              "storageclass": "StorageClass",
+              "volumemode": "Volume mode",
+              "Value": "Запрошено",
+              "cluster": "Кластер"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "—",
+          "custom": {
+            "align": "auto",
+            "inspect": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Запрошено"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "-1": {
+                        "text": "—",
+                        "color": "#687385",
+                        "index": 0
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Фаза"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "Bound": {
+                        "text": "Bound",
+                        "color": "#238044",
+                        "index": 0
+                      },
+                      "Pending": {
+                        "text": "Pending",
+                        "color": "#B58106",
+                        "index": 1
+                      },
+                      "Lost": {
+                        "text": "Lost",
+                        "color": "#BA3438",
+                        "index": 2
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [],
+        "cellHeight": "sm",
+        "enablePagination": true
+      },
+      "id": 15,
+      "gridPos": {
+        "x": 0,
+        "y": 22,
+        "w": 24,
+        "h": 9
+      }
+    },
+    {
+      "type": "table",
+      "title": "PV · ёмкость, привязка и reclaim policy",
+      "description": "PV — ресурсы уровня кластера. Таблица включает свободные и Released PV, поэтому выбор Namespace и PVC regex на неё не влияет. Колонка Claim показывает claimRef, в том числе у Released PV.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "((((max by(cluster,persistentvolume,phase)(kube_persistentvolume_status_phase{cluster=~\"${cluster:raw}\"})==1) * on(cluster,persistentvolume) group_left(storageclass,reclaim_policy,csi_driver,claim_namespace,name) (((max by(cluster,persistentvolume,storageclass,reclaim_policy,csi_driver)(kube_persistentvolume_info{cluster=~\"${cluster:raw}\",storageclass=~\"${storageclass:regex}\"})) * on(cluster,persistentvolume) group_left(claim_namespace,name) ((max by(cluster,persistentvolume,claim_namespace,name)(kube_persistentvolume_claim_ref{cluster=~\"${cluster:raw}\"})) or on(cluster,persistentvolume) (max by(cluster,persistentvolume,claim_namespace,name)(label_replace((label_replace((label_replace(((kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\",volumename!=\"\"}) and on(cluster,namespace,persistentvolumeclaim) (max by(cluster,namespace,persistentvolumeclaim)(kube_persistentvolumeclaim_status_phase{cluster=~\"${cluster:raw}\",phase=\"Bound\"})==1)),\"persistentvolume\",\"$1\",\"volumename\",\"(.+)\")),\"claim_namespace\",\"$1\",\"namespace\",\"(.+)\")),\"name\",\"$1\",\"persistentvolumeclaim\",\"(.+)\"))))) or on(cluster,persistentvolume) (max by(cluster,persistentvolume,storageclass,reclaim_policy,csi_driver)(kube_persistentvolume_info{cluster=~\"${cluster:raw}\",storageclass=~\"${storageclass:regex}\"})))) or on(cluster,persistentvolume) (((max by(cluster,persistentvolume,storageclass,reclaim_policy,csi_driver)(kube_persistentvolume_info{cluster=~\"${cluster:raw}\",storageclass=~\"${storageclass:regex}\"})) * on(cluster,persistentvolume) group_left(claim_namespace,name) ((max by(cluster,persistentvolume,claim_namespace,name)(kube_persistentvolume_claim_ref{cluster=~\"${cluster:raw}\"})) or on(cluster,persistentvolume) (max by(cluster,persistentvolume,claim_namespace,name)(label_replace((label_replace((label_replace(((kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\",volumename!=\"\"}) and on(cluster,namespace,persistentvolumeclaim) (max by(cluster,namespace,persistentvolumeclaim)(kube_persistentvolumeclaim_status_phase{cluster=~\"${cluster:raw}\",phase=\"Bound\"})==1)),\"persistentvolume\",\"$1\",\"volumename\",\"(.+)\")),\"claim_namespace\",\"$1\",\"namespace\",\"(.+)\")),\"name\",\"$1\",\"persistentvolumeclaim\",\"(.+)\"))))) or on(cluster,persistentvolume) (max by(cluster,persistentvolume,storageclass,reclaim_policy,csi_driver)(kube_persistentvolume_info{cluster=~\"${cluster:raw}\",storageclass=~\"${storageclass:regex}\"})))) * on(cluster,persistentvolume) group_left() (max by(cluster,persistentvolume)(kube_persistentvolume_capacity_bytes{cluster=~\"${cluster:raw}\"}))) or on(cluster,persistentvolume) ((((max by(cluster,persistentvolume,phase)(kube_persistentvolume_status_phase{cluster=~\"${cluster:raw}\"})==1) * on(cluster,persistentvolume) group_left(storageclass,reclaim_policy,csi_driver,claim_namespace,name) (((max by(cluster,persistentvolume,storageclass,reclaim_policy,csi_driver)(kube_persistentvolume_info{cluster=~\"${cluster:raw}\",storageclass=~\"${storageclass:regex}\"})) * on(cluster,persistentvolume) group_left(claim_namespace,name) ((max by(cluster,persistentvolume,claim_namespace,name)(kube_persistentvolume_claim_ref{cluster=~\"${cluster:raw}\"})) or on(cluster,persistentvolume) (max by(cluster,persistentvolume,claim_namespace,name)(label_replace((label_replace((label_replace(((kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\",volumename!=\"\"}) and on(cluster,namespace,persistentvolumeclaim) (max by(cluster,namespace,persistentvolumeclaim)(kube_persistentvolumeclaim_status_phase{cluster=~\"${cluster:raw}\",phase=\"Bound\"})==1)),\"persistentvolume\",\"$1\",\"volumename\",\"(.+)\")),\"claim_namespace\",\"$1\",\"namespace\",\"(.+)\")),\"name\",\"$1\",\"persistentvolumeclaim\",\"(.+)\"))))) or on(cluster,persistentvolume) (max by(cluster,persistentvolume,storageclass,reclaim_policy,csi_driver)(kube_persistentvolume_info{cluster=~\"${cluster:raw}\",storageclass=~\"${storageclass:regex}\"})))) or on(cluster,persistentvolume) (((max by(cluster,persistentvolume,storageclass,reclaim_policy,csi_driver)(kube_persistentvolume_info{cluster=~\"${cluster:raw}\",storageclass=~\"${storageclass:regex}\"})) * on(cluster,persistentvolume) group_left(claim_namespace,name) ((max by(cluster,persistentvolume,claim_namespace,name)(kube_persistentvolume_claim_ref{cluster=~\"${cluster:raw}\"})) or on(cluster,persistentvolume) (max by(cluster,persistentvolume,claim_namespace,name)(label_replace((label_replace((label_replace(((kube_persistentvolumeclaim_info{cluster=~\"${cluster:raw}\",volumename!=\"\"}) and on(cluster,namespace,persistentvolumeclaim) (max by(cluster,namespace,persistentvolumeclaim)(kube_persistentvolumeclaim_status_phase{cluster=~\"${cluster:raw}\",phase=\"Bound\"})==1)),\"persistentvolume\",\"$1\",\"volumename\",\"(.+)\")),\"claim_namespace\",\"$1\",\"namespace\",\"(.+)\")),\"name\",\"$1\",\"persistentvolumeclaim\",\"(.+)\"))))) or on(cluster,persistentvolume) (max by(cluster,persistentvolume,storageclass,reclaim_policy,csi_driver)(kube_persistentvolume_info{cluster=~\"${cluster:raw}\",storageclass=~\"${storageclass:regex}\"}))))*0-1)",
+          "format": "table",
+          "instant": true,
+          "range": false,
+          "legendFormat": ""
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true
+            },
+            "indexByName": {
+              "persistentvolume": 0,
+              "phase": 1,
+              "Value": 2,
+              "claim_namespace": 3,
+              "name": 4,
+              "storageclass": 5,
+              "reclaim_policy": 6,
+              "csi_driver": 7,
+              "cluster": 8
+            },
+            "renameByName": {
+              "persistentvolume": "PV",
+              "phase": "Фаза",
+              "Value": "Ёмкость",
+              "claim_namespace": "Claim namespace",
+              "name": "Claim",
+              "storageclass": "StorageClass",
+              "reclaim_policy": "Reclaim policy",
+              "csi_driver": "CSI driver",
+              "cluster": "Кластер"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "—",
+          "custom": {
+            "align": "auto",
+            "inspect": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Ёмкость"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "-1": {
+                        "text": "—",
+                        "color": "#687385",
+                        "index": 0
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Фаза"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "Bound": {
+                        "text": "Bound",
+                        "color": "#238044",
+                        "index": 0
+                      },
+                      "Available": {
+                        "text": "Available",
+                        "color": "#238044",
+                        "index": 1
+                      },
+                      "Pending": {
+                        "text": "Pending",
+                        "color": "#B58106",
+                        "index": 2
+                      },
+                      "Released": {
+                        "text": "Released",
+                        "color": "#B58106",
+                        "index": 3
+                      },
+                      "Failed": {
+                        "text": "Failed",
+                        "color": "#BA3438",
+                        "index": 4
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [],
+        "cellHeight": "sm",
+        "enablePagination": true
+      },
+      "id": 16,
+      "gridPos": {
+        "x": 0,
+        "y": 31,
+        "w": 24,
+        "h": 10
+      }
+    }
+  ]
+}
