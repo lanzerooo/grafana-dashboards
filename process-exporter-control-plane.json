@@ -1,0 +1,2704 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "VictoriaMetrics / Prometheus",
+      "description": "Источник с process-exporter и метрикой up.",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "__requires": [
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "9.0.0"
+    },
+    {
+      "type": "datasource",
+      "id": "prometheus",
+      "name": "Prometheus",
+      "version": "1.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "stat",
+      "name": "Stat",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "timeseries",
+      "name": "Time series",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "table",
+      "name": "Table",
+      "version": ""
+    }
+  ],
+  "id": null,
+  "uid": "process-exporter-control-plane",
+  "title": "Process Exporter · мастер-ноды Kubernetes",
+  "schemaVersion": 38,
+  "version": 1,
+  "editable": true,
+  "tags": [
+    "kubernetes",
+    "control-plane",
+    "process-exporter",
+    "victoriametrics"
+  ],
+  "timezone": "browser",
+  "refresh": "1m",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "graphTooltip": 1,
+  "description": "Процессы мастер-нод по метрикам process-exporter. Job, Instance и Группа определяются по метрикам. Watch (regex) задаёт ожидаемые группы. CPU отображается в логических ядрах, у FD пороги 80% и 90%.",
+  "templating": {
+    "list": [
+      {
+        "name": "cluster",
+        "label": "Cluster (regex)",
+        "type": "textbox",
+        "query": ".*",
+        "current": {
+          "selected": true,
+          "text": ".*",
+          "value": ".*"
+        },
+        "description": "Если VictoriaMetrics хранит несколько кластеров, выберите нужный по метке cluster. .* включает серии без этой метки.",
+        "options": [],
+        "hide": 0
+      },
+      {
+        "name": "job",
+        "label": "Job",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "definition": "label_values({__name__=~\"namedprocess_namegroup_num_procs|namedprocess_scrape_errors|process_exporter_build_info\",cluster=~\"${cluster:raw}\"},job)",
+        "query": {
+          "query": "label_values({__name__=~\"namedprocess_namegroup_num_procs|namedprocess_scrape_errors|process_exporter_build_info\",cluster=~\"${cluster:raw}\"},job)",
+          "refId": "StandardVariableQuery"
+        },
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "options": [],
+        "description": "Job с метриками process-exporter в выбранном диапазоне.",
+        "refresh": 2,
+        "sort": 1,
+        "hide": 0,
+        "includeAll": true,
+        "multi": true
+      },
+      {
+        "name": "instance",
+        "label": "Instance",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "definition": "label_values({__name__=~\"namedprocess_namegroup_num_procs|namedprocess_scrape_errors|process_exporter_build_info\",cluster=~\"${cluster:raw}\",job=~\"${job}\"},instance)",
+        "query": {
+          "query": "label_values({__name__=~\"namedprocess_namegroup_num_procs|namedprocess_scrape_errors|process_exporter_build_info\",cluster=~\"${cluster:raw}\",job=~\"${job}\"},instance)",
+          "refId": "StandardVariableQuery"
+        },
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "options": [],
+        "description": "Scrape instance мастер-нод.",
+        "refresh": 2,
+        "sort": 1,
+        "hide": 0,
+        "includeAll": true,
+        "multi": true
+      },
+      {
+        "name": "group",
+        "label": "Группа",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "definition": "label_values(namedprocess_namegroup_num_procs{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\"},groupname)",
+        "query": {
+          "query": "label_values(namedprocess_namegroup_num_procs{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\"},groupname)",
+          "refId": "StandardVariableQuery"
+        },
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "options": [],
+        "description": "Названия групп из конфигурации process-exporter.",
+        "refresh": 2,
+        "sort": 1,
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*"
+      },
+      {
+        "name": "watch",
+        "label": "Watch (regex)",
+        "type": "textbox",
+        "query": "kube-apiserver|kube-controller-manager|kube-scheduler|kubelet|etcd",
+        "current": {
+          "selected": true,
+          "text": "kube-apiserver|kube-controller-manager|kube-scheduler|kubelet|etcd",
+          "value": "kube-apiserver|kube-controller-manager|kube-scheduler|kubelet|etcd"
+        },
+        "description": "Ожидаемые имена групп. Проверяются только группы, активные на этом instance за последние 24 часа. Укажите фактические groupname из конфигурации.",
+        "options": [],
+        "hide": 0
+      },
+      {
+        "name": "top_n",
+        "label": "Топ графиков",
+        "type": "custom",
+        "query": "5,10,20",
+        "hide": 0,
+        "multi": false,
+        "includeAll": false,
+        "current": {
+          "selected": true,
+          "text": "10",
+          "value": "10"
+        },
+        "options": [
+          {
+            "selected": false,
+            "text": "5",
+            "value": "5"
+          },
+          {
+            "selected": true,
+            "text": "10",
+            "value": "10"
+          },
+          {
+            "selected": false,
+            "text": "20",
+            "value": "20"
+          }
+        ]
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Состояние мастер-нод",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Exporter недоступен",
+      "description": "Количество выбранных scrape targets с up = 0. Для дублирующих сборщиков достаточно успешного scrape у одного.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "(count(max by(cluster,job,instance)(up{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\"})==0)) or (count(max by(cluster,job,instance)(up{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\"}))*0) or (vector(-1))",
+          "legendFormat": "",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "orientation": "auto",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true,
+          "limit": 500
+        },
+        "textMode": "value",
+        "wideLayout": false
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "noValue": "НЕТ ДАННЫХ",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              },
+              {
+                "value": 0,
+                "color": "#218245"
+              },
+              {
+                "value": 1,
+                "color": "#BF3C42"
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "ВСЕ ДОСТУПНЫ",
+                  "color": "#218245",
+                  "index": 1
+                },
+                "-1": {
+                  "text": "НЕТ UP",
+                  "color": "#687385",
+                  "index": 0
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "id": 2,
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Активные группы",
+      "description": "Количество пар instance × groupname, где num_procs > 0.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "(count(max by(cluster,job,instance,groupname)(namedprocess_namegroup_num_procs{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"})>0)) or (count(max by(cluster,job,instance,groupname)(namedprocess_namegroup_num_procs{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"}))*0) or (vector(-1))",
+          "legendFormat": "",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "orientation": "auto",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true,
+          "limit": 500
+        },
+        "textMode": "value",
+        "wideLayout": false
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "noValue": "НЕТ ДАННЫХ",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              },
+              {
+                "value": 0,
+                "color": "#218245"
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "НЕТ ДАННЫХ",
+                  "color": "#687385",
+                  "index": 0
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "id": 3,
+      "gridPos": {
+        "x": 4,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Пропали Watch groups",
+      "description": "Группы, которые работали на этой ноде за последние 24 часа, но ни разу не были активны за последние 5 минут. Учитываются только ноды с up = 1.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "(count(((max by(cluster,job,instance,groupname)(max_over_time(namedprocess_namegroup_num_procs{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\",groupname=~\"${watch:raw}\"}[24h]))>0) unless on(cluster,job,instance,groupname) (max by(cluster,job,instance,groupname)(max_over_time(namedprocess_namegroup_num_procs{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\",groupname=~\"${watch:raw}\"}[5m]))>0)) and on(cluster,job,instance) (max by(cluster,job,instance)(up{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\"})>0))) or (count((max by(cluster,job,instance,groupname)(max_over_time(namedprocess_namegroup_num_procs{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\",groupname=~\"${watch:raw}\"}[24h]))>0) and on(cluster,job,instance) (max by(cluster,job,instance)(up{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\"})>0))*0) or (vector(-1))",
+          "legendFormat": "",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "orientation": "auto",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true,
+          "limit": 500
+        },
+        "textMode": "value",
+        "wideLayout": false
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "noValue": "НЕТ ДАННЫХ",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              },
+              {
+                "value": 0,
+                "color": "#218245"
+              },
+              {
+                "value": 1,
+                "color": "#BF3C42"
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "НЕТ BASELINE",
+                  "color": "#687385",
+                  "index": 0
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "id": 4,
+      "gridPos": {
+        "x": 8,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Макс. занятие FD",
+      "description": "Максимум worst_fd_ratio по работающим группам. Это доля soft limit у наиболее загруженного процесса в группе.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "(max((100*max by(cluster,job,instance,groupname)(namedprocess_namegroup_worst_fd_ratio{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"})) and on(cluster,job,instance,groupname) (max by(cluster,job,instance,groupname)(namedprocess_namegroup_num_procs{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"})>0))) or (vector(-1))",
+          "legendFormat": "",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "orientation": "auto",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true,
+          "limit": 500
+        },
+        "textMode": "value",
+        "wideLayout": false
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "НЕТ ДАННЫХ",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              },
+              {
+                "value": 0,
+                "color": "#218245"
+              },
+              {
+                "value": 80,
+                "color": "#BC8712"
+              },
+              {
+                "value": 90,
+                "color": "#BF3C42"
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "НЕТ ДАННЫХ",
+                  "color": "#687385",
+                  "index": 0
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "id": 5,
+      "gridPos": {
+        "x": 12,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Группы Waiting / Zombie",
+      "description": "Текущее количество групп, в которых exporter видит Waiting или Zombie.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "(count((max by(cluster,job,instance,groupname)(namedprocess_namegroup_states{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\",state=\"Zombie\"})>0) or (max by(cluster,job,instance,groupname)(namedprocess_namegroup_states{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\",state=\"Waiting\"})>0))) or (count((max by(cluster,job,instance,groupname)(namedprocess_namegroup_states{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\",state=\"Waiting\"})) or (max by(cluster,job,instance,groupname)(namedprocess_namegroup_states{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\",state=\"Zombie\"})))*0) or (vector(-1))",
+          "legendFormat": "",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "orientation": "auto",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true,
+          "limit": 500
+        },
+        "textMode": "value",
+        "wideLayout": false
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "noValue": "НЕТ ДАННЫХ",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              },
+              {
+                "value": 0,
+                "color": "#218245"
+              },
+              {
+                "value": 1,
+                "color": "#BC8712"
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "НЕТ ДАННЫХ",
+                  "color": "#687385",
+                  "index": 0
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "id": 6,
+      "gridPos": {
+        "x": 16,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Ошибки чтения /proc",
+      "description": "Окно 15 минут. Красный — ошибка всего сбора. Жёлтый — частичный сбой или ошибки отдельных процессов.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "(count((label_replace((max by(cluster,job,instance)(increase(namedprocess_scrape_errors{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\"}[15m]))),\"error_kind\",\"Сбор целиком\",\"__name__\",\".*\"))>0)*0+2) or (count(((label_replace((max by(cluster,job,instance)(increase(namedprocess_scrape_partial_errors{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\"}[15m]))),\"error_kind\",\"Частичные ошибки\",\"__name__\",\".*\")) or (label_replace((max by(cluster,job,instance)(increase(namedprocess_scrape_procread_errors{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\"}[15m]))),\"error_kind\",\"Чтение процесса\",\"__name__\",\".*\")))>0)*0+1) or (count((label_replace((max by(cluster,job,instance)(increase(namedprocess_scrape_errors{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\"}[15m]))),\"error_kind\",\"Сбор целиком\",\"__name__\",\".*\")) or (label_replace((max by(cluster,job,instance)(increase(namedprocess_scrape_partial_errors{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\"}[15m]))),\"error_kind\",\"Частичные ошибки\",\"__name__\",\".*\")) or (label_replace((max by(cluster,job,instance)(increase(namedprocess_scrape_procread_errors{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\"}[15m]))),\"error_kind\",\"Чтение процесса\",\"__name__\",\".*\")))*0) or (vector(-1))",
+          "legendFormat": "",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "orientation": "auto",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true,
+          "limit": 500
+        },
+        "textMode": "value",
+        "wideLayout": false
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "noValue": "НЕТ ДАННЫХ",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              },
+              {
+                "value": 0,
+                "color": "#218245"
+              },
+              {
+                "value": 1,
+                "color": "#BC8712"
+              },
+              {
+                "value": 2,
+                "color": "#BF3C42"
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "OK",
+                  "color": "#218245",
+                  "index": 1
+                },
+                "1": {
+                  "text": "ВНИМАНИЕ",
+                  "color": "#BC8712",
+                  "index": 2
+                },
+                "2": {
+                  "text": "КРИТИЧНО",
+                  "color": "#BF3C42",
+                  "index": 3
+                },
+                "-1": {
+                  "text": "НЕТ ДАННЫХ",
+                  "color": "#687385",
+                  "index": 0
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "id": 7,
+      "gridPos": {
+        "x": 20,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "id": 8,
+      "type": "row",
+      "title": "Диагностика",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Недоступные targets",
+      "description": "Только выбранные targets с up = 0. Target, удалённый из service discovery, может перестать публиковать up.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "((max by(cluster,job,instance)(up{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\"})==0)*0+2) or on() (label_replace(((count(max by(cluster,job,instance)(up{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\"}))*0-1) or (vector(-2))),\"instance\",\"—\",\"__name__\",\".*\"))",
+          "legendFormat": "{{instance}}",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "orientation": "auto",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true,
+          "limit": 500
+        },
+        "textMode": "value_and_name",
+        "wideLayout": false
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "noValue": "НЕТ ДАННЫХ",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              },
+              {
+                "value": 0,
+                "color": "#218245"
+              },
+              {
+                "value": 1,
+                "color": "#BC8712"
+              },
+              {
+                "value": 2,
+                "color": "#BF3C42"
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "2": {
+                  "text": "КРИТИЧНО",
+                  "color": "#BF3C42",
+                  "index": 2
+                },
+                "-2": {
+                  "text": "НЕТ МЕТРИК",
+                  "color": "#687385",
+                  "index": 0
+                },
+                "-1": {
+                  "text": "ПРОБЛЕМ НЕТ",
+                  "color": "#687385",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "id": 9,
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 8,
+        "h": 6
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Пропавшие группы · Watch",
+      "description": "Группы из Watch (regex), ранее замеченные на этом instance. При недоступном exporter смотрите статус target.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "((((max by(cluster,job,instance,groupname)(max_over_time(namedprocess_namegroup_num_procs{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\",groupname=~\"${watch:raw}\"}[24h]))>0) unless on(cluster,job,instance,groupname) (max by(cluster,job,instance,groupname)(max_over_time(namedprocess_namegroup_num_procs{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\",groupname=~\"${watch:raw}\"}[5m]))>0)) and on(cluster,job,instance) (max by(cluster,job,instance)(up{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\"})>0))*0+2) or on() (label_replace((label_replace(((count((max by(cluster,job,instance,groupname)(max_over_time(namedprocess_namegroup_num_procs{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\",groupname=~\"${watch:raw}\"}[24h]))>0) and on(cluster,job,instance) (max by(cluster,job,instance)(up{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\"})>0))*0-1) or (vector(-2))),\"instance\",\"—\",\"__name__\",\".*\")),\"groupname\",\"—\",\"__name__\",\".*\"))",
+          "legendFormat": "{{instance}} · {{groupname}}",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "orientation": "auto",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true,
+          "limit": 500
+        },
+        "textMode": "value_and_name",
+        "wideLayout": false
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "noValue": "НЕТ ДАННЫХ",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              },
+              {
+                "value": 0,
+                "color": "#218245"
+              },
+              {
+                "value": 1,
+                "color": "#BC8712"
+              },
+              {
+                "value": 2,
+                "color": "#BF3C42"
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "2": {
+                  "text": "КРИТИЧНО",
+                  "color": "#BF3C42",
+                  "index": 2
+                },
+                "-2": {
+                  "text": "НЕТ BASELINE",
+                  "color": "#687385",
+                  "index": 0
+                },
+                "-1": {
+                  "text": "ПРОБЛЕМ НЕТ",
+                  "color": "#687385",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "id": 10,
+      "gridPos": {
+        "x": 8,
+        "y": 6,
+        "w": 8,
+        "h": 6
+      }
+    },
+    {
+      "type": "stat",
+      "title": "FD ≥ 90%",
+      "description": "Только группы с активными процессами. Показывается процент soft limit у самого нагруженного дескрипторами процесса.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "(((100*max by(cluster,job,instance,groupname)(namedprocess_namegroup_worst_fd_ratio{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"})) and on(cluster,job,instance,groupname) (max by(cluster,job,instance,groupname)(namedprocess_namegroup_num_procs{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"})>0))>=90) or on() (label_replace((label_replace(((count((100*max by(cluster,job,instance,groupname)(namedprocess_namegroup_worst_fd_ratio{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"})) and on(cluster,job,instance,groupname) (max by(cluster,job,instance,groupname)(namedprocess_namegroup_num_procs{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"})>0))*0-1) or (vector(-2))),\"instance\",\"—\",\"__name__\",\".*\")),\"groupname\",\"—\",\"__name__\",\".*\"))",
+          "legendFormat": "{{instance}} · {{groupname}}",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "orientation": "auto",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true,
+          "limit": 500
+        },
+        "textMode": "value_and_name",
+        "wideLayout": false
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "НЕТ ДАННЫХ",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              },
+              {
+                "value": 0,
+                "color": "#218245"
+              },
+              {
+                "value": 80,
+                "color": "#BC8712"
+              },
+              {
+                "value": 90,
+                "color": "#BF3C42"
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-2": {
+                  "text": "НЕТ МЕТРИК",
+                  "color": "#687385",
+                  "index": 0
+                },
+                "-1": {
+                  "text": "ПРОБЛЕМ НЕТ",
+                  "color": "#687385",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "id": 11,
+      "gridPos": {
+        "x": 16,
+        "y": 6,
+        "w": 8,
+        "h": 6
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Изменения старейшего процесса · 30 мин",
+      "description": "Число изменений времени старта старейшего процесса за 30 минут. Включает смену состава группы и периоды, когда группа опустела. У многопроцессной группы отдельные рестарты могут не менять этот показатель.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by(cluster,job,instance,groupname)(changes(namedprocess_namegroup_oldest_start_time_seconds{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"}[30m]))>0",
+          "legendFormat": "{{instance}} · {{groupname}}",
+          "format": "time_series",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 7,
+            "showPoints": "always",
+            "pointSize": 3,
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 12,
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 12,
+        "h": 7
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Ошибки чтения /proc · прирост за 15 мин",
+      "description": "Частичные ошибки могут объяснять нулевой I/O. Окна перекрываются, поэтому значения соседних точек не складываются.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "(label_replace((max by(cluster,job,instance)(increase(namedprocess_scrape_errors{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\"}[15m]))),\"error_kind\",\"Сбор целиком\",\"__name__\",\".*\")) or (label_replace((max by(cluster,job,instance)(increase(namedprocess_scrape_partial_errors{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\"}[15m]))),\"error_kind\",\"Частичные ошибки\",\"__name__\",\".*\")) or (label_replace((max by(cluster,job,instance)(increase(namedprocess_scrape_procread_errors{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\"}[15m]))),\"error_kind\",\"Чтение процесса\",\"__name__\",\".*\"))",
+          "legendFormat": "{{instance}} · {{error_kind}}",
+          "format": "time_series",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 1,
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 7,
+            "showPoints": "never",
+            "pointSize": 3,
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 13,
+      "gridPos": {
+        "x": 12,
+        "y": 12,
+        "w": 12,
+        "h": 7
+      }
+    },
+    {
+      "id": 14,
+      "type": "row",
+      "title": "CPU и память",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 19,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU · ядра",
+      "description": "1,00 = одно полностью занятое логическое ядро. User и system суммируются после вычисления rate. Топ фиксируется на конец периода.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "(sum by(cluster,job,instance,groupname)(max by(cluster,job,instance,groupname,mode)(rate(namedprocess_namegroup_cpu_seconds_total{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"}[$__rate_interval])))) and on(cluster,job,instance,groupname) (topk(${top_n:raw},sum by(cluster,job,instance,groupname)(max by(cluster,job,instance,groupname,mode)(rate(namedprocess_namegroup_cpu_seconds_total{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"}[$__rate_interval] @ end())))))",
+          "legendFormat": "{{instance}} · {{groupname}}",
+          "format": "time_series",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: ядер",
+          "decimals": 2,
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 7,
+            "showPoints": "never",
+            "pointSize": 3,
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 15,
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU · user / system",
+      "description": "Разрез по mode для того же топа CPU. Топ фиксируется на конец периода.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "(max by(cluster,job,instance,groupname,mode)(rate(namedprocess_namegroup_cpu_seconds_total{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"}[$__rate_interval]))) and on(cluster,job,instance,groupname) (topk(${top_n:raw},sum by(cluster,job,instance,groupname)(max by(cluster,job,instance,groupname,mode)(rate(namedprocess_namegroup_cpu_seconds_total{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"}[$__rate_interval] @ end())))))",
+          "legendFormat": "{{instance}} · {{groupname}} · {{mode}}",
+          "format": "time_series",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: ядер",
+          "decimals": 2,
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 7,
+            "showPoints": "never",
+            "pointSize": 3,
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 16,
+      "gridPos": {
+        "x": 12,
+        "y": 20,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Память · RSS",
+      "description": "Суммарный RSS в группе. Общие страницы могут учитываться у нескольких процессов. Топ фиксируется на конец периода.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "(max by(cluster,job,instance,groupname)(namedprocess_namegroup_memory_bytes{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\",memtype=\"resident\"})) and on(cluster,job,instance,groupname) (topk(${top_n:raw},max by(cluster,job,instance,groupname)(namedprocess_namegroup_memory_bytes{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\",memtype=\"resident\"} @ end())))",
+          "legendFormat": "{{instance}} · {{groupname}}",
+          "format": "time_series",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "decimals": 1,
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 7,
+            "showPoints": "never",
+            "pointSize": 3,
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 17,
+      "gridPos": {
+        "x": 0,
+        "y": 28,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Память · PSS",
+      "description": "PSS пропорционально распределяет общие страницы. Данные есть, если exporter читает smaps и публикует proportionalResident.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "(max by(cluster,job,instance,groupname)(namedprocess_namegroup_memory_bytes{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\",memtype=\"proportionalResident\"})) and on(cluster,job,instance,groupname) (topk(${top_n:raw},max by(cluster,job,instance,groupname)(namedprocess_namegroup_memory_bytes{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\",memtype=\"proportionalResident\"} @ end())))",
+          "legendFormat": "{{instance}} · {{groupname}}",
+          "format": "time_series",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "decimals": 1,
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 7,
+            "showPoints": "never",
+            "pointSize": 3,
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 18,
+      "gridPos": {
+        "x": 12,
+        "y": 28,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Память · swap",
+      "description": "VmSwap по группам процессов. В графике только группы с ненулевым swap на конец периода.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "(max by(cluster,job,instance,groupname)(namedprocess_namegroup_memory_bytes{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\",memtype=\"swapped\"})) and on(cluster,job,instance,groupname) (topk(${top_n:raw},max by(cluster,job,instance,groupname)(namedprocess_namegroup_memory_bytes{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\",memtype=\"swapped\"} @ end())>0))",
+          "legendFormat": "{{instance}} · {{groupname}}",
+          "format": "time_series",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "decimals": 1,
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 7,
+            "showPoints": "never",
+            "pointSize": 3,
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 19,
+      "gridPos": {
+        "x": 0,
+        "y": 36,
+        "w": 12,
+        "h": 7
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Major page faults",
+      "description": "Частота major faults. Смотрите рядом с RSS, swap и I/O.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "(max by(cluster,job,instance,groupname)(rate(namedprocess_namegroup_major_page_faults_total{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"}[$__rate_interval]))) and on(cluster,job,instance,groupname) (topk(${top_n:raw},max by(cluster,job,instance,groupname)(rate(namedprocess_namegroup_major_page_faults_total{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"}[$__rate_interval] @ end()))))",
+          "legendFormat": "{{instance}} · {{groupname}}",
+          "format": "time_series",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: /s",
+          "decimals": 1,
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 7,
+            "showPoints": "never",
+            "pointSize": 3,
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 20,
+      "gridPos": {
+        "x": 12,
+        "y": 36,
+        "w": 12,
+        "h": 7
+      }
+    },
+    {
+      "id": 21,
+      "type": "row",
+      "title": "I/O и файловые дескрипторы",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 43,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "I/O · чтение",
+      "description": "Скорость по read_bytes из /proc/[pid]/io. Нулевые значения возможны при недостаточных правах exporter.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "(max by(cluster,job,instance,groupname)(rate(namedprocess_namegroup_read_bytes_total{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"}[$__rate_interval]))) and on(cluster,job,instance,groupname) (topk(${top_n:raw},max by(cluster,job,instance,groupname)(rate(namedprocess_namegroup_read_bytes_total{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"}[$__rate_interval] @ end()))))",
+          "legendFormat": "{{instance}} · {{groupname}}",
+          "format": "time_series",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "decimals": 1,
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 7,
+            "showPoints": "never",
+            "pointSize": 3,
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 22,
+      "gridPos": {
+        "x": 0,
+        "y": 44,
+        "w": 12,
+        "h": 7
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "I/O · запись",
+      "description": "Скорость по write_bytes из /proc/[pid]/io. Это I/O, атрибутированный процессу.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "(max by(cluster,job,instance,groupname)(rate(namedprocess_namegroup_write_bytes_total{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"}[$__rate_interval]))) and on(cluster,job,instance,groupname) (topk(${top_n:raw},max by(cluster,job,instance,groupname)(rate(namedprocess_namegroup_write_bytes_total{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"}[$__rate_interval] @ end()))))",
+          "legendFormat": "{{instance}} · {{groupname}}",
+          "format": "time_series",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "decimals": 1,
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 7,
+            "showPoints": "never",
+            "pointSize": 3,
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 23,
+      "gridPos": {
+        "x": 12,
+        "y": 44,
+        "w": 12,
+        "h": 7
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "FD · процент soft limit",
+      "description": "Максимальная доля soft limit внутри группы. Пороги 80% и 90%.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "(100*max by(cluster,job,instance,groupname)(namedprocess_namegroup_worst_fd_ratio{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"})) and on(cluster,job,instance,groupname) (topk(${top_n:raw},100*max by(cluster,job,instance,groupname)(namedprocess_namegroup_worst_fd_ratio{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"} @ end())))",
+          "legendFormat": "{{instance}} · {{groupname}}",
+          "format": "time_series",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "min": 0,
+          "max": 100,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              },
+              {
+                "value": 0,
+                "color": "#218245"
+              },
+              {
+                "value": 80,
+                "color": "#BC8712"
+              },
+              {
+                "value": 90,
+                "color": "#BF3C42"
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 7,
+            "showPoints": "never",
+            "pointSize": 3,
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 24,
+      "gridPos": {
+        "x": 0,
+        "y": 51,
+        "w": 12,
+        "h": 7
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "FD · открытые дескрипторы",
+      "description": "Общее число открытых дескрипторов во всех процессах группы.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "(max by(cluster,job,instance,groupname)(namedprocess_namegroup_open_filedesc{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"})) and on(cluster,job,instance,groupname) (topk(${top_n:raw},max by(cluster,job,instance,groupname)(namedprocess_namegroup_open_filedesc{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"} @ end())))",
+          "legendFormat": "{{instance}} · {{groupname}}",
+          "format": "time_series",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 7,
+            "showPoints": "never",
+            "pointSize": 3,
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 25,
+      "gridPos": {
+        "x": 12,
+        "y": 51,
+        "w": 12,
+        "h": 7
+      }
+    },
+    {
+      "id": 26,
+      "type": "row",
+      "title": "Процессы и потоки",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 58,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Процессы в группе",
+      "description": "Топ по числу процессов на конец периода. При выборе одной группы удобно сравнивать мастер-ноды.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "(max by(cluster,job,instance,groupname)(namedprocess_namegroup_num_procs{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"})) and on(cluster,job,instance,groupname) (topk(${top_n:raw},max by(cluster,job,instance,groupname)(namedprocess_namegroup_num_procs{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"} @ end())))",
+          "legendFormat": "{{instance}} · {{groupname}}",
+          "format": "time_series",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 7,
+            "showPoints": "never",
+            "pointSize": 3,
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 27,
+      "gridPos": {
+        "x": 0,
+        "y": 59,
+        "w": 12,
+        "h": 7
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Потоки в группе",
+      "description": "Суммарное число потоков в группе.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "(max by(cluster,job,instance,groupname)(namedprocess_namegroup_num_threads{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"})) and on(cluster,job,instance,groupname) (topk(${top_n:raw},max by(cluster,job,instance,groupname)(namedprocess_namegroup_num_threads{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"} @ end())))",
+          "legendFormat": "{{instance}} · {{groupname}}",
+          "format": "time_series",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 7,
+            "showPoints": "never",
+            "pointSize": 3,
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 28,
+      "gridPos": {
+        "x": 12,
+        "y": 59,
+        "w": 12,
+        "h": 7
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Waiting и Zombie",
+      "description": "Ненулевые значения по состояниям, которые публикует exporter.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by(cluster,job,instance,groupname,state)(namedprocess_namegroup_states{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\",state=~\"Waiting|Zombie\"})>0",
+          "legendFormat": "{{instance}} · {{groupname}} · {{state}}",
+          "format": "time_series",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 7,
+            "showPoints": "always",
+            "pointSize": 3,
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 29,
+      "gridPos": {
+        "x": 0,
+        "y": 66,
+        "w": 12,
+        "h": 7
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Переключения контекста",
+      "description": "Voluntary и nonvoluntary по группам. Топ выбирается по сумме двух типов на конец периода.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "(max by(cluster,job,instance,groupname,ctxswitchtype)(rate(namedprocess_namegroup_context_switches_total{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"}[$__rate_interval]))) and on(cluster,job,instance,groupname) (topk(${top_n:raw},sum by(cluster,job,instance,groupname)(max by(cluster,job,instance,groupname,ctxswitchtype)(rate(namedprocess_namegroup_context_switches_total{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"}[$__rate_interval] @ end())))))",
+          "legendFormat": "{{instance}} · {{groupname}} · {{ctxswitchtype}}",
+          "format": "time_series",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: /s",
+          "decimals": 1,
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 7,
+            "showPoints": "never",
+            "pointSize": 3,
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 30,
+      "gridPos": {
+        "x": 12,
+        "y": 66,
+        "w": 12,
+        "h": 7
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Возраст старейшего процесса",
+      "description": "Время с запуска старейшего активного процесса в группе. В топе группы с самым недавним стартом на конец периода.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "(clamp_min(time()-((max by(cluster,job,instance,groupname)(namedprocess_namegroup_oldest_start_time_seconds{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"})>0) and on(cluster,job,instance,groupname) (max by(cluster,job,instance,groupname)(namedprocess_namegroup_num_procs{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"})>0)),0)) and on(cluster,job,instance,groupname) (topk(${top_n:raw},(max by(cluster,job,instance,groupname)(namedprocess_namegroup_oldest_start_time_seconds{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"} @ end())>0) and on(cluster,job,instance,groupname) (max by(cluster,job,instance,groupname)(namedprocess_namegroup_num_procs{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"} @ end())>0)))",
+          "legendFormat": "{{instance}} · {{groupname}}",
+          "format": "time_series",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 0,
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 7,
+            "showPoints": "never",
+            "pointSize": 3,
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 31,
+      "gridPos": {
+        "x": 0,
+        "y": 73,
+        "w": 12,
+        "h": 7
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Доступность process-exporter",
+      "description": "up = 1 — scrape успешен, up = 0 — недоступен. Пропуск линии означает отсутствие ряда.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by(cluster,job,instance)(up{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\"})",
+          "legendFormat": "{{instance}}",
+          "format": "time_series",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "min": 0,
+          "max": 1,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "#687385"
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 7,
+            "showPoints": "never",
+            "pointSize": 3,
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 32,
+      "gridPos": {
+        "x": 12,
+        "y": 73,
+        "w": 12,
+        "h": 7
+      }
+    },
+    {
+      "id": 33,
+      "type": "row",
+      "title": "Инвентарь",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 80,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "type": "table",
+      "title": "Группы по мастер-нодам",
+      "description": "Названия групп берутся из process-exporter. Ноль означает, что exporter сохраняет в выдаче пустую группу.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by(cluster,job,instance,groupname)(namedprocess_namegroup_num_procs{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\",groupname=~\"${group}\"})",
+          "legendFormat": "",
+          "format": "table",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true
+            },
+            "indexByName": {
+              "instance": 0,
+              "groupname": 1,
+              "Value": 2,
+              "job": 3,
+              "cluster": 4
+            },
+            "renameByName": {
+              "instance": "Instance",
+              "groupname": "Группа",
+              "Value": "Процессы",
+              "job": "Job",
+              "cluster": "Кластер"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "noValue": "—",
+          "custom": {
+            "align": "auto",
+            "inspect": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [],
+        "cellHeight": "sm",
+        "enablePagination": true
+      },
+      "id": 34,
+      "gridPos": {
+        "x": 0,
+        "y": 81,
+        "w": 15,
+        "h": 10
+      }
+    },
+    {
+      "type": "table",
+      "title": "Targets и последний scrape",
+      "description": "1 — последний scrape успешен, 0 — ошибка.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by(cluster,job,instance)(up{cluster=~\"${cluster:raw}\",job=~\"${job}\",instance=~\"${instance}\"})",
+          "legendFormat": "",
+          "format": "table",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true
+            },
+            "indexByName": {
+              "instance": 0,
+              "Value": 1,
+              "job": 2,
+              "cluster": 3
+            },
+            "renameByName": {
+              "instance": "Instance",
+              "Value": "Up",
+              "job": "Job",
+              "cluster": "Кластер"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "noValue": "—",
+          "custom": {
+            "align": "auto",
+            "inspect": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [],
+        "cellHeight": "sm",
+        "enablePagination": true
+      },
+      "id": 35,
+      "gridPos": {
+        "x": 15,
+        "y": 81,
+        "w": 9,
+        "h": 10
+      }
+    }
+  ]
+}
